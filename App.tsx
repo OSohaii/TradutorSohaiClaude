@@ -11,6 +11,13 @@ import {
   ichigoLogin as ichigoLoginApi,
   runPipeline as runPipelineApi,
 } from './services/api/pipelineApi';
+import {
+  useAuthStore,
+  useTranslatorStore,
+  useFontsStore,
+  StoredFont,
+  EngineId,
+} from './store';
 import { 
   BookOpenIcon, 
   TrashIcon, 
@@ -42,30 +49,10 @@ import {
   BookmarkSquareIcon
 } from '@heroicons/react/24/outline';
 
-// Definition of available engines
-type EngineType = 'GEMINI_FLASH' | 'GEMINI_FLASH_FULL' | 'GEMINI_3_FLASH' | 'GEMINI_3_FLASH_FULL' | 'GEMINI_PRO' | 'GEMINI_PRO_FULL' | 'ICHIGO' | 'TORII' | 'DEEPL' | 'GOOGLE';
-
-const ENGINE_LABELS: Record<EngineType, string> = {
-  'GEMINI_FLASH': 'Gemini 2.5 Flash',
-  'GEMINI_FLASH_FULL': 'Gemini 2.5 Flash (Full)',
-  'GEMINI_3_FLASH': 'Gemini 3 Flash (Novo)',
-  'GEMINI_3_FLASH_FULL': 'Gemini 3 Flash (Full)',
-  'GEMINI_PRO': 'Gemini 3 Pro (OCR)',
-  'GEMINI_PRO_FULL': 'Gemini 3 Pro (Full)',
-  'ICHIGO': 'Ichigo (OCR)',
-  'TORII': 'Torii (Full Page)',
-  'DEEPL': 'DeepL API',
-  'GOOGLE': 'Google Translate'
-};
-
-const GEMINI_MODELS: Record<string, string> = {
-  'GEMINI_FLASH': 'gemini-2.5-flash',
-  'GEMINI_FLASH_FULL': 'gemini-2.5-flash',
-  'GEMINI_3_FLASH': 'gemini-3-flash-preview',
-  'GEMINI_3_FLASH_FULL': 'gemini-3-flash-preview', // Full Pipeline
-  'GEMINI_PRO': 'gemini-3-pro-preview',
-  'GEMINI_PRO_FULL': 'gemini-3-pro-preview'
-};
+// Definition of available engines is now centralised in the store
+// (`store/useTranslatorStore.ts`). The local `EngineType` declaration,
+// `ENGINE_LABELS` and `GEMINI_MODELS` were dead code (no callers) and
+// have been removed during the Phase-2a refactor.
 
 const TORII_TRANSLATORS = [
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Rápido)' },
@@ -74,10 +61,9 @@ const TORII_TRANSLATORS = [
   { id: 'gpt-4o', name: 'GPT-4o (Premium)' }
 ];
 
-// Interface for Custom Stored Fonts
-interface StoredFont extends FontOption {
-  data: string; // Base64 data of the font file
-}
+// `StoredFont` now lives in `store/useFontsStore.ts` and is re-exported
+// from `./store`. The local interface that used to live here was a
+// duplicate and has been removed.
 
 const App: React.FC = () => {
   // State for the current active image being viewed/processed
@@ -90,29 +76,87 @@ const App: React.FC = () => {
   const [isCleanMode, setIsCleanMode] = useState(false); // Fullscreen/Zen mode
   const [longPressTriggered, setLongPressTriggered] = useState(false);
 
-  // --- Engine Configuration State (with Persistence) ---
-  const [ocrEngine, setOcrEngine] = useState<EngineType>(() => (localStorage.getItem('manga_ocr_engine') as EngineType) || 'GEMINI_FLASH');
-  const [transEngine, setTransEngine] = useState<EngineType>(() => (localStorage.getItem('manga_trans_engine') as EngineType) || 'GEMINI_PRO');
-  const [ichigoModel, setIchigoModel] = useState<string>(() => localStorage.getItem('manga_ichigo_model') || 'Gemini 3 Pro');
-  
-  // Font State
-  const [targetFont, setTargetFont] = useState<string>(() => localStorage.getItem('manga_target_font') || DEFAULT_FONT_VALUE);
-  const [targetBold, setTargetBold] = useState<boolean>(() => localStorage.getItem('manga_target_bold') !== 'false'); // Default true
-  const [targetItalic, setTargetItalic] = useState<boolean>(() => localStorage.getItem('manga_target_italic') === 'true'); // Default false
-  
-  // Bubble Scale State
-  const [globalBubbleScale, setGlobalBubbleScale] = useState<number>(() => {
-    const saved = localStorage.getItem('manga_bubble_scale');
-    return saved ? parseFloat(saved) : 1.0;
-  });
+  // --- Engine + viewer preferences (persisted via zustand) ---
+  // Pre-Phase-2a these were 11 separate `useState`s + `useEffect`s
+  // syncing each value into its own localStorage key. Now the store's
+  // `persist` middleware does all of that declaratively.
+  const ocrEngine = useTranslatorStore(s => s.ocrEngine);
+  const setOcrEngine = useTranslatorStore(s => s.setOcrEngine);
+  const transEngine = useTranslatorStore(s => s.transEngine);
+  const setTransEngine = useTranslatorStore(s => s.setTransEngine);
+  const ichigoModel = useTranslatorStore(s => s.ichigoModel);
+  const setIchigoModel = useTranslatorStore(s => s.setIchigoModel);
 
-  // Token Tracking State
+  const targetFont = useTranslatorStore(s => s.targetFont);
+  const setTargetFont = useTranslatorStore(s => s.setTargetFont);
+  const targetBold = useTranslatorStore(s => s.targetBold);
+  const setTargetBold = useTranslatorStore(s => s.setTargetBold);
+  const targetItalic = useTranslatorStore(s => s.targetItalic);
+  const setTargetItalic = useTranslatorStore(s => s.setTargetItalic);
+
+  const globalBubbleScale = useTranslatorStore(s => s.globalBubbleScale);
+  const setGlobalBubbleScale = useTranslatorStore(s => s.setGlobalBubbleScale);
+
+  const toriiInternalTrans = useTranslatorStore(s => s.toriiInternalTrans);
+  const setToriiInternalTrans = useTranslatorStore(s => s.setToriiInternalTrans);
+  const toriiStrokeDisabled = useTranslatorStore(s => s.toriiStrokeDisabled);
+  const setToriiStrokeDisabled = useTranslatorStore(s => s.setToriiStrokeDisabled);
+  const toriiInpaintOnly = useTranslatorStore(s => s.toriiInpaintOnly);
+  const setToriiInpaintOnly = useTranslatorStore(s => s.setToriiInpaintOnly);
+  const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
+  const setUseToriiForCleaning = useTranslatorStore(s => s.setUseToriiForCleaning);
+
+  // Seed the font default on first run. The store can't import
+  // `DEFAULT_FONT_VALUE` itself (it would pull the whole MangaViewer
+  // bundle into the store layer), so we do it here once when the
+  // persisted value is empty.
+  useEffect(() => {
+    if (!targetFont) setTargetFont(DEFAULT_FONT_VALUE);
+  }, [targetFont, setTargetFont]);
+
+  // --- Auth / BYOK keys (persisted via zustand) ---
+  const ichigoEmail = useAuthStore(s => s.ichigoEmail);
+  const setIchigoEmail = useAuthStore(s => s.setIchigoEmail);
+  const ichigoToken = useAuthStore(s => s.ichigoToken);
+  // The store also exposes an `ichigoRemember` flag and setter; the
+  // current UI has no checkbox for it (default = true), so we don't
+  // pull them in here. The flag is honored by the store's `partialize`.
+  const loginIchigoStore = useAuthStore(s => s.loginIchigo);
+  const logoutIchigoStore = useAuthStore(s => s.logoutIchigo);
+
+  const toriiApiKey = useAuthStore(s => s.toriiApiKey);
+  const setToriiApiKey = useAuthStore(s => s.setToriiApiKey);
+  const toriiSaveKey = useAuthStore(s => s.toriiSaveKey);
+  const setToriiSaveKey = useAuthStore(s => s.setToriiSaveKey);
+
+  const geminiApiKey = useAuthStore(s => s.geminiApiKey);
+  const setGeminiApiKey = useAuthStore(s => s.setGeminiApiKey);
+
+  const deepLKey = useAuthStore(s => s.deepLKey);
+  const setDeepLKey = useAuthStore(s => s.setDeepLKey);
+
+  // --- Custom fonts (persisted via zustand) ---
+  const customFonts = useFontsStore(s => s.customFonts);
+  const isFontLoading = useFontsStore(s => s.isLoading);
+  const addFont = useFontsStore(s => s.addFont);
+  const removeFont = useFontsStore(s => s.removeFont);
+  const setFontLoading = useFontsStore(s => s.setLoading);
+  const registerLoadedFonts = useFontsStore(s => s.registerLoadedFonts);
+
+  // Re-register every persisted FontFace with the browser exactly once
+  // per page load. Without this the user would see the family names in
+  // the selector but the rendered text would fall back to a system font.
+  useEffect(() => {
+    void registerLoadedFonts();
+  }, [registerLoadedFonts]);
+
+  // --- Session-only state (not persisted) ---
+  const [ichigoPassword, setIchigoPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Token tracking is per-session (resets on reload) by design.
   const [totalTokens, setTotalTokens] = useState({ input: 0, output: 0 });
   const [totalCost, setTotalCost] = useState(0);
-
-  // Custom Fonts State
-  const [customFonts, setCustomFonts] = useState<StoredFont[]>([]);
-  const [isFontLoading, setIsFontLoading] = useState(false);
 
   // Settings Modals
   const [showIchigoSettings, setShowIchigoSettings] = useState(false);
@@ -126,82 +170,6 @@ const App: React.FC = () => {
   const [activeFontTab, setActiveFontTab] = useState<'custom' | 'library'>('custom');
   const [fontSearch, setFontSearch] = useState('');
   const [fontPreviewText, setFontPreviewText] = useState('The quick brown fox jumps over the lazy dog');
-
-  // Auth/Keys
-  const [ichigoEmail, setIchigoEmail] = useState(localStorage.getItem('ichigo_email') || '');
-  const [ichigoPassword, setIchigoPassword] = useState('');
-  const [ichigoRemember, setIchigoRemember] = useState(true);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [ichigoToken, setIchigoToken] = useState<string | null>(localStorage.getItem('ichigo_token'));
-  
-  const [toriiApiKey, setToriiApiKey] = useState(localStorage.getItem('torii_key') || '');
-  const [toriiSaveKey, setToriiSaveKey] = useState(true);
-  
-  // Gemini BYOK (variable was historically named "googleApiKey" because the
-  // localStorage entry was "google_api_key"; both names referred to the user's
-  // own Gemini API key). We migrate the old localStorage entry on first load
-  // so existing users don't lose their key.
-  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
-    const newKey = localStorage.getItem('gemini_api_key');
-    if (newKey) return newKey;
-    const legacy = localStorage.getItem('google_api_key');
-    if (legacy) {
-      localStorage.setItem('gemini_api_key', legacy);
-      localStorage.removeItem('google_api_key');
-      return legacy;
-    }
-    return '';
-  });
-
-  // Torii Advanced Configs
-  const [toriiInternalTrans, setToriiInternalTrans] = useState(() => localStorage.getItem('manga_torii_trans') || 'google_translate');
-  const [toriiStrokeDisabled, setToriiStrokeDisabled] = useState(() => localStorage.getItem('manga_torii_stroke') === 'true');
-  const [toriiInpaintOnly, setToriiInpaintOnly] = useState(() => localStorage.getItem('manga_torii_inpaint') === 'true');
-  const [useToriiForCleaning, setUseToriiForCleaning] = useState(() => localStorage.getItem('manga_torii_cleaning') === 'true');
-
-  const [deepLKey, setDeepLKey] = useState(localStorage.getItem('deepl_key') || '');
-
-
-  // --- Persistence Effects ---
-  useEffect(() => { localStorage.setItem('manga_ocr_engine', ocrEngine); }, [ocrEngine]);
-  useEffect(() => { localStorage.setItem('manga_trans_engine', transEngine); }, [transEngine]);
-  useEffect(() => { localStorage.setItem('manga_ichigo_model', ichigoModel); }, [ichigoModel]);
-  useEffect(() => { localStorage.setItem('manga_torii_trans', toriiInternalTrans); }, [toriiInternalTrans]);
-  useEffect(() => { localStorage.setItem('manga_torii_stroke', String(toriiStrokeDisabled)); }, [toriiStrokeDisabled]);
-  useEffect(() => { localStorage.setItem('manga_torii_inpaint', String(toriiInpaintOnly)); }, [toriiInpaintOnly]);
-  useEffect(() => { localStorage.setItem('manga_torii_cleaning', String(useToriiForCleaning)); }, [useToriiForCleaning]);
-  useEffect(() => { localStorage.setItem('manga_target_font', targetFont); }, [targetFont]);
-  useEffect(() => { localStorage.setItem('manga_target_bold', String(targetBold)); }, [targetBold]);
-  useEffect(() => { localStorage.setItem('manga_target_italic', String(targetItalic)); }, [targetItalic]);
-  useEffect(() => { localStorage.setItem('manga_bubble_scale', globalBubbleScale.toString()); }, [globalBubbleScale]);
-
-  // Load Custom Fonts on Startup
-  useEffect(() => {
-    const loadCustomFonts = async () => {
-      try {
-        const stored = localStorage.getItem('manga_custom_fonts');
-        if (stored) {
-          const parsedFonts: StoredFont[] = JSON.parse(stored);
-          setCustomFonts(parsedFonts);
-
-          // Register fonts in the browser
-          for (const font of parsedFonts) {
-            try {
-              // Create FontFace: Name, URL/Buffer
-              const fontFace = new FontFace(font.name, `url(${font.data})`);
-              const loadedFace = await fontFace.load();
-              document.fonts.add(loadedFace);
-            } catch (err) {
-              console.error(`Falha ao carregar fonte ${font.name}:`, err);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Erro ao ler fontes do localStorage", e);
-      }
-    };
-    loadCustomFonts();
-  }, []);
 
   // --- Token Calculation Logic ---
   // The BFF returns combined token usage in the pipeline response. This
@@ -273,14 +241,9 @@ const App: React.FC = () => {
     setIsLoggingIn(true);
     try {
       const { accessToken } = await ichigoLoginApi(ichigoEmail, ichigoPassword);
-      setIchigoToken(accessToken);
-      if (ichigoRemember) {
-        localStorage.setItem('ichigo_token', accessToken);
-        localStorage.setItem('ichigo_email', ichigoEmail);
-      } else {
-        localStorage.removeItem('ichigo_token');
-        localStorage.removeItem('ichigo_email');
-      }
+      // The store honors the `ichigoRemember` flag at persist time, so
+      // we don't need to manually toggle localStorage here.
+      loginIchigoStore(ichigoEmail, accessToken);
       if (ocrEngine !== 'ICHIGO') setOcrEngine('ICHIGO');
     } catch (error) {
       const message =
@@ -292,76 +255,55 @@ const App: React.FC = () => {
   };
 
   const logoutIchigo = () => {
-    setIchigoToken(null);
-    localStorage.removeItem('ichigo_token');
+    logoutIchigoStore();
     if (ocrEngine === 'ICHIGO') setOcrEngine('GEMINI_FLASH');
   };
 
+  // The three "save" handlers below used to imperatively push values
+  // into localStorage. The store's `persist` middleware now handles
+  // persistence transparently, so all these helpers do is close the
+  // modal. Settings are already persisted as the user types.
   const saveToriiKey = () => {
-    if (toriiSaveKey) localStorage.setItem('torii_key', toriiApiKey);
-    else localStorage.removeItem('torii_key');
     setShowToriiSettings(false);
   };
 
   const saveDeepLKey = () => {
-    localStorage.setItem('deepl_key', deepLKey);
     setShowDeepLSettings(false);
   };
-  
+
   const saveGeminiKey = () => {
-    if (geminiApiKey) {
-      localStorage.setItem('gemini_api_key', geminiApiKey);
-    } else {
-      localStorage.removeItem('gemini_api_key');
-    }
     setShowGeminiSettings(false);
   };
 
   // --- Font Management ---
   const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    
-    setIsFontLoading(true);
+
+    setFontLoading(true);
     const file = e.target.files[0];
     const fontName = file.name.split('.')[0].replace(/[^a-zA-Z0-9 ]/g, ''); // Simple cleanup
-    
+
     try {
       const base64Data = await fileToBase64(file);
-      
-      // Load into browser
-      const fontFace = new FontFace(fontName, `url(${base64Data})`);
-      const loadedFace = await fontFace.load();
-      document.fonts.add(loadedFace);
-
       const newFont: StoredFont = {
         name: fontName,
         value: `"${fontName}", sans-serif`,
-        data: base64Data
+        data: base64Data,
       };
-
-      const updatedFonts = [...customFonts, newFont];
-      setCustomFonts(updatedFonts);
-      
-      // Save to storage (Note: LocalStorage has limits (~5MB), this is basic impl)
-      try {
-        localStorage.setItem('manga_custom_fonts', JSON.stringify(updatedFonts));
-      } catch (err) {
-        alert("Erro: Espaço insuficiente no armazenamento local para salvar esta fonte.");
-        // Still available in memory for this session
-      }
-
+      // The store registers the FontFace with the browser, persists the
+      // entry to localStorage, and surfaces a console warning if the
+      // quota is exceeded.
+      await addFont(newFont);
     } catch (err) {
-      console.error("Erro ao carregar fonte:", err);
-      alert("Arquivo de fonte inválido ou corrompido.");
+      console.error('Erro ao carregar fonte:', err);
+      alert('Arquivo de fonte inválido ou corrompido.');
     } finally {
-      setIsFontLoading(false);
+      setFontLoading(false);
     }
   };
 
   const deleteCustomFont = (index: number) => {
-    const updated = customFonts.filter((_, i) => i !== index);
-    setCustomFonts(updated);
-    localStorage.setItem('manga_custom_fonts', JSON.stringify(updated));
+    removeFont(index);
   };
 
   // Merge fonts for the selector
@@ -753,7 +695,7 @@ const App: React.FC = () => {
            <div className="space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 flex items-center gap-1.5"><ViewfinderCircleIcon className="w-3.5 h-3.5"/> OCR</span>
-                <select value={ocrEngine} onChange={(e) => setOcrEngine(e.target.value as EngineType)} className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate">
+                <select value={ocrEngine} onChange={(e) => setOcrEngine(e.target.value as EngineId)} className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate">
                    <option value="GEMINI_FLASH">Gemini 2.5 Flash</option>
                    <option value="GEMINI_FLASH_FULL">Gemini 2.5 Flash (Full)</option>
                    <option value="GEMINI_3_FLASH">Gemini 3 Flash (Novo)</option>
@@ -768,7 +710,7 @@ const App: React.FC = () => {
                 <span className="text-slate-400 flex items-center gap-1.5"><ChatBubbleLeftRightIcon className="w-3.5 h-3.5"/> Tradutor</span>
                 <select 
                     value={transEngine} 
-                    onChange={(e) => setTransEngine(e.target.value as EngineType)} 
+                    onChange={(e) => setTransEngine(e.target.value as EngineId)} 
                     className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate"
                     disabled={ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL'}
                 >
