@@ -1,0 +1,230 @@
+import { useAuthStore, useTranslatorStore, useSessionStore } from '../../store';
+import { useTokenTracker } from './useTokenTracker';
+import {
+  ApiError,
+  ByokKeys,
+  EngineId as ApiEngineId,
+  runPipeline as runPipelineApi,
+} from '../../services/api/pipelineApi';
+import { createTrackedObjectURL } from '../../services/blobUrls';
+import { ProcessedImage, TextBubble } from '../../types';
+
+/**
+ * Pure utility: reads a File as a base64 data URL string.
+ * Exported so FontManagerModal (and any other consumer) can reuse it.
+ */
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const encoded = reader.result as string;
+      resolve(encoded);
+    };
+    reader.onerror = error => reject(error);
+  });
+};
+
+export interface UseTranslatePipelineOptions {
+  onAuthError: (modal: 'ichigo' | 'torii' | 'deepl' | 'gemini') => void;
+}
+
+export interface UseTranslatePipelineReturn {
+  handleFilesSelect: (files: File[]) => Promise<void>;
+  handleRetranslate: () => Promise<void>;
+  totalCost: number;
+  displayedTotalTokens: number;
+}
+
+export const useTranslatePipeline = (
+  options: UseTranslatePipelineOptions,
+): UseTranslatePipelineReturn => {
+  const { onAuthError } = options;
+
+  // Store selectors
+  const ocrEngine = useTranslatorStore(s => s.ocrEngine);
+  const transEngine = useTranslatorStore(s => s.transEngine);
+  const ichigoModel = useTranslatorStore(s => s.ichigoModel);
+  const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
+  const setOcrEngine = useTranslatorStore(s => s.setOcrEngine);
+
+  const ichigoToken = useAuthStore(s => s.ichigoToken);
+  const toriiApiKey = useAuthStore(s => s.toriiApiKey);
+  const deepLKey = useAuthStore(s => s.deepLKey);
+  const geminiApiKey = useAuthStore(s => s.geminiApiKey);
+  const logoutIchigoStore = useAuthStore(s => s.logoutIchigo);
+
+  const currentImage = useSessionStore(s => s.currentImage);
+  const addImagesToSession = useSessionStore(s => s.addImages);
+  const updateImageStateInStore = useSessionStore(s => s.updateImageState);
+
+  const { totalCost, displayedTotalTokens, handleTokenUsage } = useTokenTracker();
+
+  // --- Internal helpers ---
+
+  const base64ToObjectUrl = (b64: string, mime = 'image/png'): string => {
+    const byteString = atob(b64);
+    const bytes = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    return createTrackedObjectURL(blob);
+  };
+
+  const buildByok = (): ByokKeys => ({
+    gemini: geminiApiKey || undefined,
+    deepl: deepLKey || undefined,
+    torii: toriiApiKey || undefined,
+    ichigo: ichigoToken || undefined,
+  });
+
+  const logoutIchigo = () => {
+    logoutIchigoStore();
+    if (ocrEngine === 'ICHIGO') setOcrEngine('GEMINI_FLASH');
+  };
+
+  const runPipeline = async (
+    base64: string,
+  ): Promise<{ bubbles: TextBubble[]; translatedImageUrl?: string }> => {
+    const usingTorii = ocrEngine === 'TORII' || transEngine === 'TORII';
+    const wantsCleaner = useToriiForCleaning && !usingTorii;
+
+    const response = await runPipelineApi(
+      {
+        imageBase64: base64,
+        ocr: { engine: ocrEngine as ApiEngineId },
+        translation: { engine: transEngine as ApiEngineId },
+        cleaner: { enabled: wantsCleaner, engine: 'TORII' },
+        options: {
+          targetLanguage: 'Portugues (Brasil)',
+          targetLangCode: 'pt-BR',
+          ichigoModel,
+        },
+      },
+      buildByok(),
+    );
+
+    if (response.tokens) handleTokenUsage(response.tokens);
+    if (response.warnings && response.warnings.length > 0) {
+      response.warnings.forEach(w => console.warn('[pipeline]', w));
+    }
+
+    let translatedImageUrl: string | undefined;
+    if (response.translatedImageBase64) {
+      translatedImageUrl = base64ToObjectUrl(response.translatedImageBase64);
+    } else if (response.cleanedImageBase64) {
+      translatedImageUrl = base64ToObjectUrl(response.cleanedImageBase64);
+    }
+
+    return { bubbles: response.bubbles, translatedImageUrl };
+  };
+
+  const handlePipelineError = (error: unknown): { errorMsg: string } => {
+    if (error instanceof ApiError) {
+      if (error.code === 'AUTH' || error.code === 'INVALID_KEY') {
+        switch (error.engine) {
+          case 'ichigo':
+            if (error.code === 'AUTH') logoutIchigo();
+            onAuthError('ichigo');
+            break;
+          case 'gemini':
+            onAuthError('gemini');
+            break;
+          case 'deepl':
+            onAuthError('deepl');
+            break;
+          case 'torii':
+            onAuthError('torii');
+            break;
+        }
+      }
+
+      const msgByCode: Partial<Record<typeof error.code, string>> = {
+        RATE_LIMIT: 'Limite de uso atingido. Tente novamente em instantes.',
+        QUOTA: 'Cota do provedor atingida.',
+        AUTH: 'Erro de autenticacao.',
+        INVALID_KEY: 'Chave de API necessaria ou invalida.',
+        NETWORK: 'Falha de rede.',
+      };
+      return { errorMsg: msgByCode[error.code] ?? error.message };
+    }
+
+    return { errorMsg: error instanceof Error ? error.message : 'Falha na traducao.' };
+  };
+
+  const processImage = async (imageObj: ProcessedImage, file: File) => {
+    try {
+      const base64 = await fileToBase64(file);
+      const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
+
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
+
+      updateImageStateInStore(imageObj.id, {
+        base64: base64Clean,
+        bubbles,
+        translatedImageUrl,
+        status: 'done',
+      });
+    } catch (error: unknown) {
+      console.error(`Error processing ${imageObj.fileName}:`, error);
+      const { errorMsg } = handlePipelineError(error);
+      updateImageStateInStore(imageObj.id, { status: 'error', errorMessage: errorMsg });
+    }
+  };
+
+  const handleRetranslate = async () => {
+    if (!currentImage) return;
+    const imageId = currentImage.id;
+    updateImageStateInStore(imageId, {
+      status: 'processing',
+      bubbles: [],
+      translatedImageUrl: undefined,
+      maskDataUrl: undefined,
+    });
+
+    try {
+      let base64Clean = currentImage.base64;
+      if (!base64Clean) {
+        const res = await fetch(currentImage.imageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], currentImage.fileName, { type: blob.type });
+        const dataUrl = await fileToBase64(file);
+        base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        updateImageStateInStore(imageId, { base64: base64Clean });
+      }
+
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
+      updateImageStateInStore(imageId, {
+        status: 'done',
+        bubbles,
+        translatedImageUrl,
+      });
+    } catch (error: unknown) {
+      const { errorMsg } = handlePipelineError(error);
+      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
+    }
+  };
+
+  const handleFilesSelect = async (files: File[]) => {
+    if (files.length === 0) return;
+    if ((ocrEngine === 'ICHIGO') && !ichigoToken) { onAuthError('ichigo'); return; }
+    if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) { onAuthError('torii'); return; }
+    if (transEngine === 'DEEPL' && !deepLKey) { onAuthError('deepl'); return; }
+
+    const newImages: ProcessedImage[] = files.map((file, index) => ({
+      id: `${Date.now()}-${index}`,
+      fileName: file.name,
+      imageUrl: createTrackedObjectURL(file),
+      base64: '',
+      bubbles: [],
+      status: 'processing',
+    }));
+
+    addImagesToSession(newImages);
+
+    for (let i = 0; i < newImages.length; i++) {
+      await processImage(newImages[i], files[i]);
+    }
+  };
+
+  return { handleFilesSelect, handleRetranslate, totalCost, displayedTotalTokens };
+};

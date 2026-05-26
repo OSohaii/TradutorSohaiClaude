@@ -1,24 +1,21 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ProcessedImage, TextBubble, ViewMode } from './types';
-import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontOption, FontGroup } from './components/MangaViewer';
+import { ProcessedImage, TextBubble } from './types';
+import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontGroup } from './components/MangaViewer';
 import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
-import { createTrackedObjectURL } from './services/blobUrls';
-import { useTokenTracker } from './features/translator/useTokenTracker';
-import {
-  ApiError,
-  ByokKeys,
-  EngineId as ApiEngineId,
-  ichigoLogin as ichigoLoginApi,
-  runPipeline as runPipelineApi,
-} from './services/api/pipelineApi';
+import { useTranslatePipeline } from './features/translator/useTranslatePipeline';
+import Toggle from './components/ui/Toggle';
+import IchigoSettingsModal from './features/settings/IchigoSettingsModal';
+import ToriiSettingsModal from './features/settings/ToriiSettingsModal';
+import DeepLSettingsModal from './features/settings/DeepLSettingsModal';
+import GeminiSettingsModal from './features/settings/GeminiSettingsModal';
+import FontManagerModal from './features/settings/FontManagerModal';
 import {
   useAuthStore,
   useTranslatorStore,
   useFontsStore,
   useSessionStore,
   useLibraryStore,
-  StoredFont,
   EngineId,
 } from './store';
 import { 
@@ -28,9 +25,6 @@ import {
   XMarkIcon,
   ChatBubbleLeftRightIcon,
   UserCircleIcon,
-  KeyIcon,
-  ViewfinderCircleIcon,
-  AdjustmentsHorizontalIcon,
   SparklesIcon,
   LanguageIcon,
   ExclamationTriangleIcon,
@@ -38,46 +32,21 @@ import {
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
   DocumentDuplicateIcon,
-  CpuChipIcon,
-  FolderPlusIcon,
   DocumentPlusIcon,
-  MagnifyingGlassIcon,
-  SwatchIcon,
   BoldIcon,
   ItalicIcon,
   CommandLineIcon,
   MinusCircleIcon,
   PlusCircleIcon,
-  CurrencyDollarIcon,
+  ViewfinderCircleIcon,
   BookmarkSquareIcon
 } from '@heroicons/react/24/outline';
 
-// Definition of available engines is now centralised in the store
-// (`store/useTranslatorStore.ts`). The local `EngineType` declaration,
-// `ENGINE_LABELS` and `GEMINI_MODELS` were dead code (no callers) and
-// have been removed during the Phase-2a refactor.
-
-const TORII_TRANSLATORS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Rápido)' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Equilibrado)' },
-  { id: 'google_translate', name: 'Google Translate (Básico)' },
-  { id: 'gpt-4o', name: 'GPT-4o (Premium)' }
-];
-
-// `StoredFont` now lives in `store/useFontsStore.ts` and is re-exported
-// from `./store`. The local interface that used to live here was a
-// duplicate and has been removed.
-
 const App: React.FC = () => {
   // ---- Session state (which images are loaded, which one is current) ----
-  // Pre-Phase-2b these were two `useState`s and the mutations lived
-  // inline as `setHistory(prev => ...)` / `setCurrentImage(...)` calls
-  // scattered through every handler. Centralising in the store removes
-  // the prop drilling and lets the viewer subscribe directly.
   const currentImage = useSessionStore(s => s.currentImage);
   const history = useSessionStore(s => s.history);
   const setCurrentImageInStore = useSessionStore(s => s.setCurrentImage);
-  const addImagesToSession = useSessionStore(s => s.addImages);
   const removeImageFromSession = useSessionStore(s => s.removeImage);
   const replaceSessionHistory = useSessionStore(s => s.replaceHistory);
   const updateImageStateInStore = useSessionStore(s => s.updateImageState);
@@ -86,21 +55,16 @@ const App: React.FC = () => {
   const addBubbleInStore = useSessionStore(s => s.addBubble);
 
   // UI States
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Drawer
-  const [readingMode, setReadingMode] = useState<'single' | 'strip'>('single'); // Single Page vs Long Strip
-  const [isCleanMode, setIsCleanMode] = useState(false); // Fullscreen/Zen mode
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [readingMode, setReadingMode] = useState<'single' | 'strip'>('single');
+  const [isCleanMode, setIsCleanMode] = useState(false);
   const [longPressTriggered, setLongPressTriggered] = useState(false);
 
   // --- Engine + viewer preferences (persisted via zustand) ---
-  // Pre-Phase-2a these were 11 separate `useState`s + `useEffect`s
-  // syncing each value into its own localStorage key. Now the store's
-  // `persist` middleware does all of that declaratively.
   const ocrEngine = useTranslatorStore(s => s.ocrEngine);
   const setOcrEngine = useTranslatorStore(s => s.setOcrEngine);
   const transEngine = useTranslatorStore(s => s.transEngine);
   const setTransEngine = useTranslatorStore(s => s.setTransEngine);
-  const ichigoModel = useTranslatorStore(s => s.ichigoModel);
-  const setIchigoModel = useTranslatorStore(s => s.setIchigoModel);
 
   const targetFont = useTranslatorStore(s => s.targetFont);
   const setTargetFont = useTranslatorStore(s => s.setTargetFont);
@@ -112,78 +76,33 @@ const App: React.FC = () => {
   const globalBubbleScale = useTranslatorStore(s => s.globalBubbleScale);
   const setGlobalBubbleScale = useTranslatorStore(s => s.setGlobalBubbleScale);
 
-  const toriiInternalTrans = useTranslatorStore(s => s.toriiInternalTrans);
-  const setToriiInternalTrans = useTranslatorStore(s => s.setToriiInternalTrans);
-  const toriiStrokeDisabled = useTranslatorStore(s => s.toriiStrokeDisabled);
-  const setToriiStrokeDisabled = useTranslatorStore(s => s.setToriiStrokeDisabled);
-  const toriiInpaintOnly = useTranslatorStore(s => s.toriiInpaintOnly);
-  const setToriiInpaintOnly = useTranslatorStore(s => s.setToriiInpaintOnly);
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
   const setUseToriiForCleaning = useTranslatorStore(s => s.setUseToriiForCleaning);
 
-  // Seed the font default on first run. The store can't import
-  // `DEFAULT_FONT_VALUE` itself (it would pull the whole MangaViewer
-  // bundle into the store layer), so we do it here once when the
-  // persisted value is empty.
+  // Seed the font default on first run.
   useEffect(() => {
     if (!targetFont) setTargetFont(DEFAULT_FONT_VALUE);
   }, [targetFont, setTargetFont]);
 
-  // --- Auth / BYOK keys (persisted via zustand) ---
-  const ichigoEmail = useAuthStore(s => s.ichigoEmail);
-  const setIchigoEmail = useAuthStore(s => s.setIchigoEmail);
+  // --- Auth / BYOK keys (for sidebar indicator badges) ---
   const ichigoToken = useAuthStore(s => s.ichigoToken);
-  // The store also exposes an `ichigoRemember` flag and setter; the
-  // current UI has no checkbox for it (default = true), so we don't
-  // pull them in here. The flag is honored by the store's `partialize`.
-  const loginIchigoStore = useAuthStore(s => s.loginIchigo);
-  const logoutIchigoStore = useAuthStore(s => s.logoutIchigo);
-
   const toriiApiKey = useAuthStore(s => s.toriiApiKey);
-  const setToriiApiKey = useAuthStore(s => s.setToriiApiKey);
-  const toriiSaveKey = useAuthStore(s => s.toriiSaveKey);
-  const setToriiSaveKey = useAuthStore(s => s.setToriiSaveKey);
-
   const geminiApiKey = useAuthStore(s => s.geminiApiKey);
-  const setGeminiApiKey = useAuthStore(s => s.setGeminiApiKey);
-
   const deepLKey = useAuthStore(s => s.deepLKey);
-  const setDeepLKey = useAuthStore(s => s.setDeepLKey);
 
-  // --- Custom fonts (persisted via zustand) ---
+  // --- Custom fonts (for selector in sidebar) ---
   const customFonts = useFontsStore(s => s.customFonts);
-  const isFontLoading = useFontsStore(s => s.isLoading);
-  const addFont = useFontsStore(s => s.addFont);
-  const removeFont = useFontsStore(s => s.removeFont);
-  const setFontLoading = useFontsStore(s => s.setLoading);
   const registerLoadedFonts = useFontsStore(s => s.registerLoadedFonts);
 
-  // Re-register every persisted FontFace with the browser exactly once
-  // per page load. Without this the user would see the family names in
-  // the selector but the rendered text would fall back to a system font.
   useEffect(() => {
     void registerLoadedFonts();
   }, [registerLoadedFonts]);
 
-  // B12 fix (PR #6): the legacy localStorage→IndexedDB migration is
-  // now an explicit, awaitable, idempotent operation triggered once at
-  // mount. Pre-PR #6 it was kicked off (without await!) inside
-  // `loadLibrary`, which raced with `pageToProcessedImage` and could
-  // corrupt the metadata.
+  // Legacy migration
   const runLegacyImagesMigration = useLibraryStore(s => s.runLegacyImagesMigration);
   useEffect(() => {
     void runLegacyImagesMigration();
   }, [runLegacyImagesMigration]);
-
-  // --- Session-only state (not persisted) ---
-  const [ichigoPassword, setIchigoPassword] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // Token tracking is per-session (resets on reload) by design. The
-  // hook owns both the cumulative counts and the model-aware cost
-  // estimate (B16's pricing tier logic moved with it). See
-  // `features/translator/useTokenTracker.ts`.
-  const { totalCost, displayedTotalTokens, handleTokenUsage } = useTokenTracker();
 
   // Settings Modals
   const [showIchigoSettings, setShowIchigoSettings] = useState(false);
@@ -193,17 +112,22 @@ const App: React.FC = () => {
   const [showFontSettings, setShowFontSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
-  // Font Manager UI State
-  const [activeFontTab, setActiveFontTab] = useState<'custom' | 'library'>('custom');
-  const [fontSearch, setFontSearch] = useState('');
-  const [fontPreviewText, setFontPreviewText] = useState('The quick brown fox jumps over the lazy dog');
+  // --- Translation pipeline hook ---
+  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, totalCost, displayedTotalTokens } = useTranslatePipeline({
+    onAuthError: (modal) => {
+      switch (modal) {
+        case 'ichigo': setShowIchigoSettings(true); break;
+        case 'torii': setShowToriiSettings(true); break;
+        case 'deepl': setShowDeepLSettings(true); break;
+        case 'gemini': setShowGeminiSettings(true); break;
+      }
+    },
+  });
 
-  // --- Token Calculation Logic ---
-  // Cumulative tracking moved to `useTokenTracker`. Pricing tiers are
-  // applied inside the hook based on the engine reported by the BFF.
-
-  // Derived state for display
-  // `displayedTotalTokens` comes from the hook.
+  const handleFilesSelect = async (files: File[]) => {
+    await pipelineFilesSelect(files);
+    setIsSidebarOpen(false);
+  };
 
   // --- Long Press Logic for Clean Mode ---
   const timerRef = useRef<number | null>(null);
@@ -226,90 +150,7 @@ const App: React.FC = () => {
     setTimeout(() => setLongPressTriggered(false), 100);
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        let encoded = reader.result as string;
-        // const base64Content = encoded.split(',')[1]; // We might need full data URI for fonts
-        resolve(encoded);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const handleIchigoLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    try {
-      const { accessToken } = await ichigoLoginApi(ichigoEmail, ichigoPassword);
-      // The store honors the `ichigoRemember` flag at persist time, so
-      // we don't need to manually toggle localStorage here.
-      loginIchigoStore(ichigoEmail, accessToken);
-      if (ocrEngine !== 'ICHIGO') setOcrEngine('ICHIGO');
-    } catch (error) {
-      const message =
-        error instanceof ApiError ? error.message : 'Falha no login: verifique suas credenciais.';
-      alert(message);
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const logoutIchigo = () => {
-    logoutIchigoStore();
-    if (ocrEngine === 'ICHIGO') setOcrEngine('GEMINI_FLASH');
-  };
-
-  // The three "save" handlers below used to imperatively push values
-  // into localStorage. The store's `persist` middleware now handles
-  // persistence transparently, so all these helpers do is close the
-  // modal. Settings are already persisted as the user types.
-  const saveToriiKey = () => {
-    setShowToriiSettings(false);
-  };
-
-  const saveDeepLKey = () => {
-    setShowDeepLSettings(false);
-  };
-
-  const saveGeminiKey = () => {
-    setShowGeminiSettings(false);
-  };
-
-  // --- Font Management ---
-  const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-
-    setFontLoading(true);
-    const file = e.target.files[0];
-    const fontName = file.name.split('.')[0].replace(/[^a-zA-Z0-9 ]/g, ''); // Simple cleanup
-
-    try {
-      const base64Data = await fileToBase64(file);
-      const newFont: StoredFont = {
-        name: fontName,
-        value: `"${fontName}", sans-serif`,
-        data: base64Data,
-      };
-      // The store registers the FontFace with the browser, persists the
-      // entry to localStorage, and surfaces a console warning if the
-      // quota is exceeded.
-      await addFont(newFont);
-    } catch (err) {
-      console.error('Erro ao carregar fonte:', err);
-      alert('Arquivo de fonte inválido ou corrompido.');
-    } finally {
-      setFontLoading(false);
-    }
-  };
-
-  const deleteCustomFont = (index: number) => {
-    removeFont(index);
-  };
-
-  // Merge fonts for the selector
+  // Merge fonts for the selector (used by font <select> in sidebar)
   const availableFontsForSelector = useMemo(() => {
     if (customFonts.length === 0) return AVAILABLE_FONTS;
     const customGroup: FontGroup = {
@@ -319,230 +160,8 @@ const App: React.FC = () => {
     };
     return [customGroup, ...AVAILABLE_FONTS];
   }, [customFonts]);
-  
-  // Filter fonts preserving groups for better organization
-  const filteredSystemFonts = useMemo(() => {
-    if (!fontSearch) return AVAILABLE_FONTS;
-    
-    const search = fontSearch.toLowerCase();
-    
-    return AVAILABLE_FONTS.reduce<(FontOption | FontGroup)[]>((acc, item) => {
-      if ('group' in item) {
-        // Filter options within group
-        const matchingOptions = item.options.filter(opt => opt.name.toLowerCase().includes(search));
-        if (matchingOptions.length > 0) {
-          acc.push({ ...item, options: matchingOptions });
-        }
-      } else {
-        if (item.name.toLowerCase().includes(search)) {
-          acc.push(item);
-        }
-      }
-      return acc;
-    }, []);
-  }, [fontSearch]);
 
-  const filteredCustomFonts = useMemo(() => {
-    if (!fontSearch) return customFonts;
-    return customFonts.filter(f => f.name.toLowerCase().includes(fontSearch.toLowerCase()));
-  }, [customFonts, fontSearch]);
-
-
-  /**
-   * Helper: convert a base64-encoded image returned by the BFF (Torii full
-   * page or cleaner output) into a blob: URL the viewer can render directly.
-   * Blob URLs minted here are revoked by `useSessionStore` whenever the
-   * owning image is removed, replaced, or has its URL fields overwritten
-   * (see `services/blobUrls.ts`).
-   */
-  const base64ToObjectUrl = (b64: string, mime = 'image/png'): string => {
-    const byteString = atob(b64);
-    const bytes = new Uint8Array(byteString.length);
-    for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
-    const blob = new Blob([bytes], { type: mime });
-    return createTrackedObjectURL(blob);
-  };
-
-  /**
-   * Build BYOK headers from the current settings panels. Empty strings stay
-   * undefined so the backend falls back to its server-configured key.
-   */
-  const buildByok = (): ByokKeys => ({
-    gemini: geminiApiKey || undefined,
-    deepl: deepLKey || undefined,
-    torii: toriiApiKey || undefined,
-    ichigo: ichigoToken || undefined,
-  });
-
-  // --- Pipeline ---
-  // The frontend no longer makes routing decisions or talks to providers
-  // directly. We assemble the request, hand it to the BFF, and translate the
-  // response into the shape the viewer expects.
-  const runPipeline = async (
-    base64: string,
-  ): Promise<{ bubbles: TextBubble[]; translatedImageUrl?: string }> => {
-    const usingTorii = ocrEngine === 'TORII' || transEngine === 'TORII';
-    const wantsCleaner = useToriiForCleaning && !usingTorii;
-
-    const response = await runPipelineApi(
-      {
-        imageBase64: base64,
-        ocr: { engine: ocrEngine as ApiEngineId },
-        translation: { engine: transEngine as ApiEngineId },
-        cleaner: { enabled: wantsCleaner, engine: 'TORII' },
-        options: {
-          targetLanguage: 'Português (Brasil)',
-          targetLangCode: 'pt-BR',
-          ichigoModel,
-        },
-      },
-      buildByok(),
-    );
-
-    if (response.tokens) handleTokenUsage(response.tokens);
-    if (response.warnings && response.warnings.length > 0) {
-      response.warnings.forEach(w => console.warn('[pipeline]', w));
-    }
-
-    // Either Torii full mode produced a translated page, or the cleaner ran
-    // and produced a text-free version. Both come back as base64.
-    let translatedImageUrl: string | undefined;
-    if (response.translatedImageBase64) {
-      translatedImageUrl = base64ToObjectUrl(response.translatedImageBase64);
-    } else if (response.cleanedImageBase64) {
-      translatedImageUrl = base64ToObjectUrl(response.cleanedImageBase64);
-    }
-
-    return { bubbles: response.bubbles, translatedImageUrl };
-  };
-
-  const processImage = async (imageObj: ProcessedImage, file: File) => {
-    try {
-      const base64 = await fileToBase64(file);
-      // Remove data prefix if exists for API calls
-      const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
-
-      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
-
-      updateImageStateInStore(imageObj.id, {
-        base64: base64Clean,
-        bubbles,
-        translatedImageUrl,
-        status: 'done',
-      });
-    } catch (error: any) {
-      console.error(`Error processing ${imageObj.fileName}:`, error);
-      const { errorMsg } = handlePipelineError(error);
-      updateImageStateInStore(imageObj.id, { status: 'error', errorMessage: errorMsg });
-    }
-  };
-
-  /**
-   * Centralised pipeline error handler. Replaces the substring-matching mess
-   * the original code used (which had bug B14 — operator-precedence bug —
-   * and wrong matches when the BFF returns Portuguese-only messages).
-   *
-   * The BFF returns ApiError instances with structured `code` + `engine`
-   * fields, so we can react precisely instead of guessing.
-   */
-  const handlePipelineError = (error: unknown): { errorMsg: string } => {
-    if (error instanceof ApiError) {
-      // Authentication / missing key → open the matching settings modal.
-      if (error.code === 'AUTH' || error.code === 'INVALID_KEY') {
-        switch (error.engine) {
-          case 'ichigo':
-            if (error.code === 'AUTH') logoutIchigo();
-            setShowIchigoSettings(true);
-            break;
-          case 'gemini':
-            setShowGeminiSettings(true);
-            break;
-          case 'deepl':
-            setShowDeepLSettings(true);
-            break;
-          case 'torii':
-            setShowToriiSettings(true);
-            break;
-        }
-      }
-
-      const msgByCode: Partial<Record<typeof error.code, string>> = {
-        RATE_LIMIT: 'Limite de uso atingido. Tente novamente em instantes.',
-        QUOTA: 'Cota do provedor atingida.',
-        AUTH: 'Erro de autenticação.',
-        INVALID_KEY: 'Chave de API necessária ou inválida.',
-        NETWORK: 'Falha de rede.',
-      };
-      return { errorMsg: msgByCode[error.code] ?? error.message };
-    }
-
-    return { errorMsg: error instanceof Error ? error.message : 'Falha na tradução.' };
-  };
-
-  const handleRetranslate = async () => {
-    if (!currentImage) return;
-    const imageId = currentImage.id;
-    // Reset the image to a "processing" state in the store; subsequent
-    // mutations target the same id.
-    updateImageStateInStore(imageId, {
-      status: 'processing',
-      bubbles: [],
-      translatedImageUrl: undefined,
-      maskDataUrl: undefined,
-    });
-
-    try {
-      // Reuse the base64 already stored on the image when available; fall
-      // back to refetching the source URL only if it isn't.
-      let base64Clean = currentImage.base64;
-      if (!base64Clean) {
-        const res = await fetch(currentImage.imageUrl);
-        const blob = await res.blob();
-        const file = new File([blob], currentImage.fileName, { type: blob.type });
-        const dataUrl = await fileToBase64(file);
-        base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-        updateImageStateInStore(imageId, { base64: base64Clean });
-      }
-
-      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
-      updateImageStateInStore(imageId, {
-        status: 'done',
-        bubbles,
-        translatedImageUrl,
-      });
-    } catch (error: any) {
-      const { errorMsg } = handlePipelineError(error);
-      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
-    }
-  };
-
-  const handleFilesSelect = async (files: File[]) => {
-    if (files.length === 0) return;
-    if ((ocrEngine === 'ICHIGO') && !ichigoToken) return setShowIchigoSettings(true);
-    if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) return setShowToriiSettings(true);
-    if (transEngine === 'DEEPL' && !deepLKey) return setShowDeepLSettings(true);
-    // Note: We don't block gemini missing key immediately as environment variable might be used
-
-    const newImages: ProcessedImage[] = files.map((file, index) => ({
-      id: `${Date.now()}-${index}`, 
-      fileName: file.name,
-      imageUrl: createTrackedObjectURL(file),
-      base64: '',
-      bubbles: [],
-      status: 'processing'
-    }));
-
-    addImagesToSession(newImages);
-    setIsSidebarOpen(false); // Auto close sidebar on mobile
-
-    // EXECUÇÃO SEQUENCIAL (FILA)
-    // Garante que a imagem 1 termina (sucesso ou erro tratado) antes de iniciar a imagem 2
-    for (let i = 0; i < newImages.length; i++) {
-        await processImage(newImages[i], files[i]);
-    }
-  };
-
-  // Handler para carregar capítulo da biblioteca
+  // Handler para carregar capitulo da biblioteca
   const handleLoadFromLibrary = (images: ProcessedImage[]) => {
     replaceSessionHistory(images);
     setIsSidebarOpen(false);
@@ -581,16 +200,6 @@ const App: React.FC = () => {
     const idx = getCurrentIndex();
     if (idx > 0) setCurrentImageInStore(history[idx - 1]);
   };
-
-  // Toggle Component for reuse
-  const Toggle = ({ label, checked, onChange, colorClass = "bg-indigo-600" }: { label: string | React.ReactNode, checked: boolean, onChange: () => void, colorClass?: string }) => (
-    <div className="flex items-center justify-between cursor-pointer" onClick={onChange}>
-       <label className="text-xs font-medium text-slate-300 pointer-events-none">{label}</label>
-       <div className={`w-9 h-5 flex items-center rounded-full p-1 duration-300 ease-in-out ${checked ? colorClass : 'bg-slate-700'}`}>
-         <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${checked ? 'translate-x-4' : ''}`}></div>
-       </div>
-    </div>
-  );
 
   return (
     <div 
@@ -955,327 +564,11 @@ const App: React.FC = () => {
       </main>
 
       {/* --- Modals (Settings) --- */}
-      {/* Font Settings Modal */}
-      {showFontSettings && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden relative animate-fade-in-up shadow-2xl">
-               
-               {/* Header */}
-               <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-                 <div>
-                   <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                      <DocumentPlusIcon className="w-6 h-6 text-indigo-400" />
-                      Gerenciador de Fontes
-                   </h3>
-                   <p className="text-xs text-slate-400 mt-1">Adicione fontes personalizadas ou visualize as do sistema.</p>
-                 </div>
-                 <button onClick={() => setShowFontSettings(false)} className="text-slate-400 hover:text-white p-2 hover:bg-slate-800 rounded-lg"><XMarkIcon className="w-6 h-6"/></button>
-               </div>
-               
-               {/* Tabs & Search */}
-               <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                  <div className="flex bg-slate-800 p-1 rounded-lg w-full sm:w-auto">
-                     <button 
-                       onClick={() => setActiveFontTab('custom')}
-                       className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-medium transition-all ${activeFontTab === 'custom' ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                     >
-                       Minhas Fontes
-                     </button>
-                     <button 
-                       onClick={() => setActiveFontTab('library')}
-                       className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-medium transition-all ${activeFontTab === 'library' ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                     >
-                       Biblioteca do Sistema
-                     </button>
-                  </div>
-
-                  <div className="relative w-full sm:w-64">
-                    <input 
-                      type="text" 
-                      placeholder="Buscar fonte..." 
-                      value={fontSearch}
-                      onChange={(e) => setFontSearch(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg pl-9 pr-3 py-2 focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <MagnifyingGlassIcon className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  </div>
-               </div>
-
-               {/* Preview Input */}
-               <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <SwatchIcon className="w-4 h-4 text-slate-500" />
-                    <input 
-                      type="text" 
-                      value={fontPreviewText} 
-                      onChange={(e) => setFontPreviewText(e.target.value)}
-                      className="bg-transparent border-none text-slate-400 text-xs w-full focus:ring-0 placeholder-slate-600"
-                      placeholder="Digite um texto para pré-visualizar..."
-                    />
-                  </div>
-               </div>
-
-               {/* Content Area */}
-               <div className="flex-1 overflow-y-auto p-4 bg-slate-950/50">
-                  
-                  {activeFontTab === 'custom' && (
-                    <div className="space-y-6">
-                       {/* Upload Box */}
-                       <label className={`
-                          flex flex-col items-center justify-center w-full h-32 border-2 border-slate-700 border-dashed rounded-xl cursor-pointer 
-                          hover:bg-slate-800/50 hover:border-indigo-500/50 transition-all group ${isFontLoading ? 'opacity-50 pointer-events-none' : ''}
-                        `}>
-                           <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                              {isFontLoading ? (
-                                 <div className="flex flex-col items-center gap-2">
-                                   <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"/>
-                                   <span className="text-xs text-indigo-400">Processando...</span>
-                                 </div>
-                              ) : (
-                                 <>
-                                   <div className="p-3 bg-slate-800 rounded-full mb-3 group-hover:bg-slate-700 transition-colors">
-                                     <FolderPlusIcon className="w-6 h-6 text-indigo-400" />
-                                   </div>
-                                   <p className="text-sm text-slate-300 font-medium">Clique para adicionar fonte</p>
-                                   <p className="text-xs text-slate-500 mt-1">Suporta .ttf, .otf, .woff</p>
-                                 </>
-                              )}
-                           </div>
-                           <input type="file" className="hidden" accept=".ttf,.otf,.woff,.woff2" onChange={handleFontUpload} disabled={isFontLoading} />
-                        </label>
-
-                        {/* Custom Fonts List */}
-                        <div className="space-y-3">
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instaladas ({filteredCustomFonts.length})</h4>
-                          
-                          {filteredCustomFonts.length === 0 ? (
-                            <div className="text-center py-8 text-slate-600 bg-slate-900/50 rounded-lg border border-slate-800 border-dashed">
-                               {fontSearch ? "Nenhuma fonte encontrada na busca." : "Nenhuma fonte personalizada instalada."}
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 gap-3">
-                               {filteredCustomFonts.map((font, idx) => (
-                                 <div key={idx} className="group relative bg-slate-800 rounded-lg border border-slate-700 p-4 hover:border-indigo-500/50 transition-colors flex flex-col gap-2">
-                                    <div className="flex justify-between items-start">
-                                       <div>
-                                          <span className="text-xs font-bold text-indigo-400 block mb-1">{font.name}</span>
-                                          <p className="text-xl text-white break-words" style={{ fontFamily: font.value }}>
-                                             {fontPreviewText || font.name}
-                                          </p>
-                                       </div>
-                                       <button 
-                                         onClick={() => deleteCustomFont(idx)} 
-                                         className="p-2 text-slate-600 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-colors"
-                                         title="Remover fonte"
-                                       >
-                                         <TrashIcon className="w-5 h-5" />
-                                       </button>
-                                    </div>
-                                 </div>
-                               ))}
-                            </div>
-                          )}
-                        </div>
-                    </div>
-                  )}
-
-                  {activeFontTab === 'library' && (
-                     <div className="space-y-6">
-                        {filteredSystemFonts.length === 0 ? (
-                            <div className="text-center py-8 text-slate-600">
-                               Nenhuma fonte encontrada para "{fontSearch}".
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-3">
-                               {filteredSystemFonts.map((item, idx) => {
-                                 // Render Group
-                                 if ('group' in item) {
-                                    return (
-                                        <div key={idx} className="space-y-2">
-                                            <h5 className="text-xs font-bold text-indigo-400 uppercase tracking-wider px-1">{item.group}</h5>
-                                            <div className="grid grid-cols-1 gap-2">
-                                                {item.options.map((opt, optIdx) => (
-                                                    <div key={`${idx}-${optIdx}`} className="bg-slate-800 rounded-lg border border-slate-700 p-3 flex flex-col gap-1">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-xs font-bold text-slate-500">{opt.name}</span>
-                                                        </div>
-                                                        <p className="text-lg text-white truncate" style={{ fontFamily: opt.value }}>
-                                                            {fontPreviewText || opt.name}
-                                                        </p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                 }
-                                 
-                                 // Render Single Item
-                                 return (
-                                     <div key={idx} className="bg-slate-800 rounded-lg border border-slate-700 p-3 flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                           <span className="text-xs font-bold text-slate-500">{item.name}</span>
-                                           {item.name === 'Anime Ace 2.0 BB' && <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">Padrão</span>}
-                                        </div>
-                                        <p className="text-lg text-white truncate" style={{ fontFamily: item.value }}>
-                                           {fontPreviewText || item.name}
-                                        </p>
-                                     </div>
-                                 );
-                               })}
-                            </div>
-                        )}
-                     </div>
-                  )}
-
-               </div>
-               
-               {/* Footer */}
-               <div className="p-3 border-t border-slate-800 bg-slate-900 flex justify-between items-center text-[10px] text-slate-500">
-                  <span>Armazenamento local (Browser)</span>
-                  <span>{customFonts.length} Customizada(s)</span>
-               </div>
-            </div>
-          </div>
-      )}
-
-      {/* Ichigo Settings Modal Wrapper */}
-      {showIchigoSettings && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-           <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-sm overflow-hidden p-6 relative">
-              <button onClick={() => setShowIchigoSettings(false)} className="absolute top-4 right-4 text-slate-400"><XMarkIcon className="w-5 h-5"/></button>
-              <h3 className="text-xl font-bold text-white mb-4">Login Ichigo</h3>
-              {!ichigoToken ? (
-                 <form onSubmit={handleIchigoLogin} className="space-y-4">
-                    <input type="email" placeholder="Email" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" value={ichigoEmail} onChange={e => setIchigoEmail(e.target.value)} />
-                    <input type="password" placeholder="Senha" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" value={ichigoPassword} onChange={e => setIchigoPassword(e.target.value)} />
-                    <button type="submit" disabled={isLoggingIn} className="w-full bg-indigo-600 text-white p-2 rounded">{isLoggingIn ? 'Entrando...' : 'Entrar'}</button>
-                 </form>
-              ) : (
-                 <div className="space-y-4">
-                    <div className="text-green-400 text-sm">Logado como: {ichigoEmail}</div>
-                    <button onClick={logoutIchigo} className="w-full border border-red-500 text-red-400 p-2 rounded">Sair</button>
-                 </div>
-              )}
-           </div>
-        </div>
-      )}
-      
-      {/* Torii Settings - Full Restoration */}
-      {showToriiSettings && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-sm overflow-hidden relative animate-fade-in-up">
-               <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
-                 <h3 className="text-white font-bold flex items-center gap-2">
-                    <SparklesIcon className="w-5 h-5 text-pink-400" />
-                    Configurar Torii
-                 </h3>
-                 <button onClick={() => setShowToriiSettings(false)} className="text-slate-400 hover:text-white"><XMarkIcon className="w-5 h-5"/></button>
-               </div>
-               
-               <div className="p-5 space-y-5">
-                   {/* API Key */}
-                   <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-400">Torii API Key</label>
-                      <div className="relative">
-                        <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-pink-500 focus:outline-none pl-9" value={toriiApiKey} onChange={e => setToriiApiKey(e.target.value)} placeholder="sk-..." />
-                        <KeyIcon className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                      </div>
-                   </div>
-
-                   {/* Internal Translator */}
-                   <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-400 flex items-center gap-2">
-                        <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                        Modelo de Tradução (Interno)
-                      </label>
-                      <select 
-                         value={toriiInternalTrans} 
-                         onChange={(e) => setToriiInternalTrans(e.target.value)} 
-                         className="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg p-2.5 focus:ring-pink-500 focus:outline-none"
-                      >
-                         {TORII_TRANSLATORS.map(t => (
-                           <option key={t.id} value={t.id}>{t.name}</option>
-                         ))}
-                      </select>
-                   </div>
-
-                   {/* Advanced Toggles */}
-                   <div className="space-y-3 pt-2 border-t border-slate-700/50">
-                      <Toggle 
-                        label={<span className="flex items-center gap-2"><AdjustmentsHorizontalIcon className="w-4 h-4 text-slate-500"/> Apenas Limpeza (Inpaint Only)</span>} 
-                        checked={toriiInpaintOnly} 
-                        onChange={() => setToriiInpaintOnly(!toriiInpaintOnly)} 
-                        colorClass="bg-pink-600"
-                      />
-                      
-                      <Toggle 
-                        label={<span className="flex items-center gap-2"><CpuChipIcon className="w-4 h-4 text-slate-500"/> Desativar Borda (Stroke Disabled)</span>} 
-                        checked={toriiStrokeDisabled} 
-                        onChange={() => setToriiStrokeDisabled(!toriiStrokeDisabled)} 
-                        colorClass="bg-pink-600"
-                      />
-
-                      <Toggle 
-                        label="Salvar Chave no Navegador" 
-                        checked={toriiSaveKey} 
-                        onChange={() => setToriiSaveKey(!toriiSaveKey)} 
-                        colorClass="bg-green-600"
-                      />
-                   </div>
-
-                   <button onClick={saveToriiKey} className="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-medium rounded-lg transition-colors shadow-lg shadow-pink-900/20">
-                     Salvar Configurações
-                   </button>
-               </div>
-            </div>
-          </div>
-      )}
-
-      {/* DeepL Settings */}
-      {showDeepLSettings && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-             <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-sm p-6 relative">
-               <button onClick={() => setShowDeepLSettings(false)} className="absolute top-4 right-4 text-slate-400"><XMarkIcon className="w-5 h-5"/></button>
-               <h3 className="text-xl font-bold text-white mb-4">Configurar DeepL</h3>
-               <input type="password" placeholder="API Key" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white mb-4" value={deepLKey} onChange={e => setDeepLKey(e.target.value)} />
-               <button onClick={saveDeepLKey} className="w-full bg-blue-600 text-white p-2 rounded">Salvar</button>
-             </div>
-          </div>
-      )}
-
-      {/* Google Gemini API Key Settings */}
-      {showGeminiSettings && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-             <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-sm p-6 relative animate-fade-in-up">
-               <button onClick={() => setShowGeminiSettings(false)} className="absolute top-4 right-4 text-slate-400"><XMarkIcon className="w-5 h-5"/></button>
-               <div className="flex items-center gap-2 mb-4">
-                  <CommandLineIcon className="w-6 h-6 text-orange-400" />
-                  <h3 className="text-xl font-bold text-white">Google Gemini API</h3>
-               </div>
-
-               <p className="text-xs text-slate-400 mb-4">
-                  Insira sua própria chave do <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">Google AI Studio</a> para usar sua quota.
-                  Se deixado em branco, o servidor usa a chave padrão (quando configurada).
-                  Sua chave fica apenas no seu navegador e é enviada ao backend somente no momento da tradução.
-               </p>
-
-               <div className="space-y-2 mb-4">
-                  <label className="text-xs font-medium text-slate-300">API Key (opcional — BYOK)</label>
-                  <input
-                    type="password"
-                    placeholder="AIzaSy..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                    value={geminiApiKey}
-                    onChange={e => setGeminiApiKey(e.target.value)}
-                  />
-               </div>
-
-               <button onClick={saveGeminiKey} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 rounded-lg transition-colors shadow-lg shadow-orange-900/20">
-                 Salvar Chave
-               </button>
-             </div>
-          </div>
-      )}
+      <FontManagerModal isOpen={showFontSettings} onClose={() => setShowFontSettings(false)} />
+      <IchigoSettingsModal isOpen={showIchigoSettings} onClose={() => setShowIchigoSettings(false)} />
+      <ToriiSettingsModal isOpen={showToriiSettings} onClose={() => setShowToriiSettings(false)} />
+      <DeepLSettingsModal isOpen={showDeepLSettings} onClose={() => setShowDeepLSettings(false)} />
+      <GeminiSettingsModal isOpen={showGeminiSettings} onClose={() => setShowGeminiSettings(false)} />
 
       {/* Library Manager */}
       <LibraryManager
