@@ -1,0 +1,10 @@
+{
+  "name": "mangalens-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "start": "cd /app && yarn dev",
+    "dev": "cd /app && yarn dev",
+    "build": "cd /app && yarn build"
+  }
+}

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MangaLens Translator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Comic Fonts for Manga Translation -->
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=Kalam:wght@300;400;700&family=Itim&family=Permanent+Marker&family=Rock+Salt&family=Creepster&family=Special+Elite&family=Russo+One&family=Luckiest+Guy&family=Architects+Daughter&family=Gloria+Hallelujah&family=Chewy&family=Patrick+Hand&family=Carter+One&family=Nosifer&family=Butcherman&family=Metal+Mania&family=Black+Ops+One&family=Bungee&family=Shojumaru&display=swap" rel="stylesheet">
+    <!-- Anime Ace Fonts & Classics (Online CDN) -->
+    <link href="https://fonts.cdnfonts.com/css/anime-ace" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/anime-ace-20-bb" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/manga-temple" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/komika-axis" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/action-man" rel="stylesheet">
+    
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #0f172a; /* Slate 900 */
+        color: #f8fafc; /* Slate 50 */
+      }
+      /* Custom scrollbar for manga list */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1e293b; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #475569; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #64748b; 
+      }
+
+      /* --- CC Wild Words Roman (BR Version) --- */
+      @font-face {
+        font-family: 'CC Wild Words Roman BR';
+        src: url('/fonts/cc_wild_words_roman_br.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+      }
+      
+      /* --- Capture it --- */
+      @font-face {
+        font-family: 'Capture it';
+        src: url('/fonts/capture_it.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/",
+    "path": "https://esm.sh/path@^0.12.7",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "url": "https://esm.sh/url@^0.11.4",
+    "tesseract.js": "https://esm.sh/tesseract.js@^7.0.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
