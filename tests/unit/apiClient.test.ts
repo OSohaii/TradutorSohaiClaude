@@ -39,17 +39,14 @@ describe('apiFetch (API client)', () => {
       json: async () => errorPayload,
     });
 
-    await expect(apiFetch('/pipeline')).rejects.toThrow(ApiError);
-    try {
-      await apiFetch('/pipeline');
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.code).toBe('RATE_LIMIT');
-      expect(apiErr.engine).toBe('gemini');
-      expect(apiErr.message).toBe('Rate limit exceeded');
-      expect(apiErr.httpStatus).toBe(429);
-      expect(apiErr.recoverable).toBe(true);
-    }
+    const err = await apiFetch('/pipeline').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    const apiErr = err as ApiError;
+    expect(apiErr.code).toBe('RATE_LIMIT');
+    expect(apiErr.engine).toBe('gemini');
+    expect(apiErr.message).toBe('Rate limit exceeded');
+    expect(apiErr.httpStatus).toBe(429);
+    expect(apiErr.recoverable).toBe(true);
   });
 
   it('creates INVALID_INPUT error from 422 response with detail field', async () => {
@@ -60,28 +57,22 @@ describe('apiFetch (API client)', () => {
       json: async () => payload,
     });
 
-    await expect(apiFetch('/pipeline')).rejects.toThrow(ApiError);
-    try {
-      await apiFetch('/pipeline');
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.code).toBe('INVALID_INPUT');
-      expect(apiErr.httpStatus).toBe(422);
-    }
+    const err = await apiFetch('/pipeline').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    const apiErr = err as ApiError;
+    expect(apiErr.code).toBe('INVALID_INPUT');
+    expect(apiErr.httpStatus).toBe(422);
   });
 
   it('creates NETWORK error when fetch throws', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Failed to fetch'));
 
-    await expect(apiFetch('/pipeline')).rejects.toThrow(ApiError);
-    try {
-      await apiFetch('/pipeline');
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.code).toBe('NETWORK');
-      expect(apiErr.engine).toBe('pipeline');
-      expect(apiErr.httpStatus).toBe(0);
-    }
+    const err = await apiFetch('/pipeline').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    const apiErr = err as ApiError;
+    expect(apiErr.code).toBe('NETWORK');
+    expect(apiErr.engine).toBe('pipeline');
+    expect(apiErr.httpStatus).toBe(0);
   });
 
   it('attaches BYOK headers when provided', async () => {

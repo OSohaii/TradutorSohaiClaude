@@ -34,3 +34,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # E2E tests (Playwright) are not run in CI because they require a running
+      # backend server. Run them locally with: npx playwright test
