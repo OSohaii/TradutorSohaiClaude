@@ -33,15 +33,19 @@ const createThumbnail = async (imageUrl: string): Promise<string> => {
   });
 };
 
-// Carregar biblioteca do localStorage
+// Carregar biblioteca do localStorage (somente leitura, sem efeitos colaterais).
+//
+// Pré-PR #6 esta função invocava `migrateOldData(data)` (assíncrono!)
+// sem await, o que causava B12: a migração mutava o objeto retornado
+// depois que o caller já tinha começado a usá-lo, gerando race com
+// `pageToProcessedImage` e perda silenciosa de imagens. A migração
+// agora é explícita: callers que querem migrar dados legados invocam
+// `migrateLegacyImagesToIDB` separadamente (ver `index.tsx`).
 export const loadLibrary = (): LibraryState => {
   try {
     const stored = localStorage.getItem(LIBRARY_STORAGE_KEY);
     if (stored) {
-      const data = JSON.parse(stored);
-      // Migrar dados antigos: se páginas têm imageUrl no localStorage, migrar para IndexedDB
-      migrateOldData(data);
-      return data;
+      return JSON.parse(stored) as LibraryState;
     }
   } catch (e) {
     console.error('Erro ao carregar biblioteca:', e);
@@ -53,27 +57,89 @@ export const loadLibrary = (): LibraryState => {
   };
 };
 
-// Migrar dados antigos do localStorage para IndexedDB
-const migrateOldData = async (state: LibraryState) => {
+// Flag idempotente para a migração legacy → IndexedDB. Roda no máximo
+// uma vez por navegador.
+const LEGACY_IMAGES_MIGRATION_FLAG = 'mangalens_library_idb_migration_v1';
+
+/**
+ * Migra páginas que ainda têm `imageUrl` em base64 dentro do localStorage
+ * para o IndexedDB, devolvendo o estado pós-migração. Idempotente: roda
+ * uma única vez por navegador (controlado por flag dedicada). Quando
+ * não há nada a migrar (caller novo ou flag já setada), devolve o
+ * estado de entrada inalterado.
+ *
+ * Ao contrário do `migrateOldData` antigo (B12), este helper:
+ *   - é `async` no nome, no tipo, e no contrato;
+ *   - não muta o estado de entrada — devolve uma cópia atualizada;
+ *   - persiste o resultado via `saveLibrary` quando algo mudou, então
+ *     callers não precisam re-chamar `saveLibrary` manualmente.
+ */
+export const migrateLegacyImagesToIDB = async (
+  state: LibraryState,
+): Promise<LibraryState> => {
+  if (typeof window === 'undefined') return state;
+  try {
+    if (localStorage.getItem(LEGACY_IMAGES_MIGRATION_FLAG) === '1') {
+      return state;
+    }
+  } catch {
+    // localStorage indisponível (modo privado restrito). Sai sem migrar.
+    return state;
+  }
+
+  let migratedSomething = false;
+  const nextMangas: Manga[] = [];
+
   for (const manga of state.mangas) {
+    const nextChapters: Chapter[] = [];
     for (const chapter of manga.chapters) {
+      const nextPages: MangaPage[] = [];
       for (const page of chapter.pages) {
-        // Se a página tem imageUrl grande (base64), migrar para IndexedDB
-        if (page.imageUrl && page.imageUrl.startsWith('data:image') && page.imageUrl.length > 1000) {
-          try {
-            await saveImage(page.id, page.imageUrl, page.maskDataUrl, page.translatedImageUrl);
-            // Limpar do objeto (será salvo sem as imagens grandes)
-            page.imageUrl = '';
-            page.maskDataUrl = '';
-            page.translatedImageUrl = '';
-            console.log(`Migrada página ${page.id} para IndexedDB`);
-          } catch (e) {
-            console.error(`Erro ao migrar página ${page.id}:`, e);
-          }
+        const needsMigration =
+          !!page.imageUrl &&
+          page.imageUrl.startsWith('data:image') &&
+          page.imageUrl.length > 1000;
+        if (!needsMigration) {
+          nextPages.push(page);
+          continue;
+        }
+        try {
+          await saveImage(
+            page.id,
+            page.imageUrl,
+            page.maskDataUrl,
+            page.translatedImageUrl,
+          );
+          nextPages.push({
+            ...page,
+            imageUrl: '',
+            maskDataUrl: '',
+            translatedImageUrl: '',
+          });
+          migratedSomething = true;
+        } catch (e) {
+          console.error(`Erro ao migrar página ${page.id}:`, e);
+          // Mantém a página com a base64 original, para preservar o
+          // dado do usuário até a próxima tentativa.
+          nextPages.push(page);
         }
       }
+      nextChapters.push({ ...chapter, pages: nextPages });
     }
+    nextMangas.push({ ...manga, chapters: nextChapters });
   }
+
+  const next: LibraryState = { ...state, mangas: nextMangas };
+  if (migratedSomething) {
+    saveLibrary(next);
+  }
+
+  try {
+    localStorage.setItem(LEGACY_IMAGES_MIGRATION_FLAG, '1');
+  } catch {
+    // ignora
+  }
+  return next;
 };
 
 // Salvar biblioteca no localStorage (apenas metadados, imagens ficam no IndexedDB)

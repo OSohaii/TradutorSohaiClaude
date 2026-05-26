@@ -11,7 +11,11 @@ import {
   updateChapter as updateChapterPure,
   deleteChapter as deleteChapterPure,
   addPagesToChapter as addPagesToChapterPure,
+  getMangaById,
+  getChapterById,
+  migrateLegacyImagesToIDB,
 } from '../services/libraryService';
+import { deleteImages } from '../services/imageStorage';
 
 /**
  * Wraps the library `LibraryState` (mangas + selection cursors) and
@@ -27,8 +31,9 @@ import {
  * localStorage-for-metadata + IndexedDB-for-images split it inherits
  * from earlier code. Instead, every action calls the matching pure
  * function from `libraryService` and persists the result via
- * `saveLibrary()`. This keeps the IDB migration helpers (`migrateOldData`)
- * working without re-implementing them at the store layer.
+ * `saveLibrary()`. This keeps the IDB migration helpers
+ * (`migrateLegacyImagesToIDB`) working without re-implementing them
+ * at the store layer.
  */
 export interface LibraryStoreState extends LibraryState {
   // ---- Mutations ----
@@ -59,20 +64,52 @@ export interface LibraryStoreState extends LibraryState {
   // ---- Selection cursors (UI helpers) ----
   setCurrentMangaId: (id: string | null) => void;
   setCurrentChapterId: (id: string | null) => void;
+
+  // ---- One-shot maintenance ----
+  /**
+   * Runs `migrateLegacyImagesToIDB` against the current state and
+   * commits the result. Idempotent — see the helper for details.
+   * Call this once at app boot (App.tsx mount).
+   */
+  runLegacyImagesMigration: () => Promise<void>;
 }
 
 /**
  * Hydrate from `libraryService.loadLibrary()` synchronously at module
  * import time so the first React render already sees the persisted
- * mangas instead of an empty array. `loadLibrary` does kick off an
- * async migration of legacy data internally (fire-and-forget, see
- * libraryService.migrateOldData) — that is bug B12 from the audit, out
- * of scope here.
+ * mangas instead of an empty array. `loadLibrary` is now a pure read
+ * (B12 fixed in PR #6). The legacy localStorage→IndexedDB migration is
+ * triggered explicitly via `runLegacyImagesMigration()` from App.tsx.
  */
 const initialState: LibraryState =
   typeof window === 'undefined'
     ? { mangas: [], currentMangaId: null, currentChapterId: null }
     : loadLibrary();
+
+/**
+ * Collects every `pageId` belonging to a manga. Used to clean up
+ * IndexedDB when the manga (or one of its chapters) is deleted (A6).
+ */
+const collectMangaPageIds = (manga: Manga | undefined): string[] => {
+  if (!manga) return [];
+  return manga.chapters.flatMap(c => c.pages.map(p => p.id));
+};
+
+const collectChapterPageIds = (chapter: Chapter | undefined): string[] =>
+  chapter ? chapter.pages.map(p => p.id) : [];
+
+/**
+ * Fire-and-forget IDB cleanup. We do not block the UI on it: the user
+ * has already seen the manga/chapter disappear, and a stranded blob in
+ * IndexedDB is a soft failure (covered by the next manual cleanup or
+ * `clearAllImages`). Errors land in the console for debugging.
+ */
+const cleanupOrphanImages = (pageIds: string[]): void => {
+  if (pageIds.length === 0) return;
+  void deleteImages(pageIds).catch(err => {
+    console.error('Erro ao limpar imagens órfãs do IndexedDB:', err);
+  });
+};
 
 export const useLibraryStore = create<LibraryStoreState>()((set, get) => ({
   ...initialState,
@@ -90,12 +127,20 @@ export const useLibraryStore = create<LibraryStoreState>()((set, get) => ({
   },
 
   deleteManga: mangaId => {
-    const next = deleteMangaPure(get(), mangaId);
+    const current = get();
+    // Snapshot orphan IDs BEFORE applying the mutation. After the
+    // delete the manga is gone from state and we can no longer find
+    // its pages.
+    const orphanPageIds = collectMangaPageIds(getMangaById(current, mangaId));
+
+    const next = deleteMangaPure(current, mangaId);
     set(next);
     saveLibrary(next);
-    // Note: bug A6 from the audit (orphan images in IndexedDB after
-    // delete) is intentionally left as-is in this PR. Phase 4 wires
-    // `imageStorage.deleteImages(...)` into these handlers.
+
+    // A6: drop the matching IndexedDB entries so deleting a manga
+    // actually frees the disk it occupied. Errors are non-fatal (see
+    // helper).
+    cleanupOrphanImages(orphanPageIds);
   },
 
   addChapter: (mangaId, chapter) => {
@@ -111,9 +156,18 @@ export const useLibraryStore = create<LibraryStoreState>()((set, get) => ({
   },
 
   deleteChapter: (mangaId, chapterId) => {
-    const next = deleteChapterPure(get(), mangaId, chapterId);
+    const current = get();
+    const orphanPageIds = collectChapterPageIds(
+      getChapterById(current, mangaId, chapterId),
+    );
+
+    const next = deleteChapterPure(current, mangaId, chapterId);
     set(next);
     saveLibrary(next);
+
+    // A6: same as `deleteManga` — purge the IDB entries the chapter
+    // owned.
+    cleanupOrphanImages(orphanPageIds);
   },
 
   addPagesToChapter: async (mangaId, chapterId, images) => {
@@ -138,4 +192,18 @@ export const useLibraryStore = create<LibraryStoreState>()((set, get) => ({
       saveLibrary(next);
       return { currentChapterId: id };
     }),
+
+  runLegacyImagesMigration: async () => {
+    // B12: the migration is now explicit, awaitable, and idempotent.
+    // We pass the current snapshot so concurrent mutations during the
+    // migration don't get clobbered.
+    const next = await migrateLegacyImagesToIDB(get());
+    // `migrateLegacyImagesToIDB` already saves when it writes, but it
+    // returns a fresh object even on no-op so React subscribers see a
+    // stable identity. Only commit when the contents actually changed
+    // to avoid a redundant render.
+    if (next !== get()) {
+      set(next);
+    }
+  },
 }));
