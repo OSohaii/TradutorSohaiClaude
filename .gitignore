@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Backup archives should not be committed
+*.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
