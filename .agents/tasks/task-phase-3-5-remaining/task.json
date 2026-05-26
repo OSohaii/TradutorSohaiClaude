@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-3-5-remaining",
+  "task_description": "Implement roadmap phases 3-5 remaining items: canonical types, planPipeline state machine, Promise.allSettled for cleaner, move fonts to IDB, token tracking per engine, rewrite DownloadCanvas.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}
