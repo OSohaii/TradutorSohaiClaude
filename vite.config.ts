@@ -5,6 +5,19 @@ import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// SECURITY NOTE
+// -------------
+// This file used to inject `process.env.API_KEY` and
+// `process.env.GEMINI_API_KEY` via Vite's `define`, which embedded the
+// Gemini key directly into the production JS bundle. Anyone could open
+// DevTools and read it.
+//
+// As of Phase 1b the frontend talks only to the BFF (`/api/*`); provider
+// keys live in environment variables on the backend, never on the client.
+// Users may still supply their own keys via the in-app settings panel —
+// those values stay in localStorage and are sent as `X-Byok-*` headers
+// per request.
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const backendTarget = env.BACKEND_URL || 'http://localhost:8000';
@@ -23,13 +36,6 @@ export default defineConfig(({ mode }) => {
         },
       },
       plugins: [react()],
-      // NOTE: process.env.API_KEY is kept here for backwards-compat with the
-      // existing geminiService that reads it directly. Phase 1b removes it
-      // entirely once the frontend migrates to /api/pipeline.
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
