@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { EngineId } from '../types';
 
 /**
  * Engine selectors and rendering preferences. None of these are secret,
@@ -8,18 +9,6 @@ import { persist, createJSONStorage } from 'zustand/middleware';
  * localStorage key; with zustand's persist middleware it collapses into
  * one declarative entry.
  */
-
-export type EngineId =
-  | 'GEMINI_FLASH'
-  | 'GEMINI_FLASH_FULL'
-  | 'GEMINI_3_FLASH'
-  | 'GEMINI_3_FLASH_FULL'
-  | 'GEMINI_PRO'
-  | 'GEMINI_PRO_FULL'
-  | 'ICHIGO'
-  | 'TORII'
-  | 'DEEPL'
-  | 'GOOGLE';
 
 export interface TranslatorState {
   ocrEngine: EngineId;

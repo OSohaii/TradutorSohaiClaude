@@ -1,14 +1,16 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
+import { saveFontToIDB, loadAllFontsFromIDB, clearAllFontsFromIDB } from '../services/imageStorage';
 
 /**
  * User-uploaded fonts (TTF/OTF/WOFF). Each font lives as a base64 data
- * URL so the file is fully self-contained inside localStorage; on
+ * URL so the file is fully self-contained inside IndexedDB; on
  * rehydrate we re-register every entry with `document.fonts.add(...)`
  * so the browser actually knows how to render text in that family.
  *
- * Caveat: localStorage caps out around 5 MB total, so heavy fonts will
- * eventually fail. The PR roadmap (Phase 4) moves this to IndexedDB.
+ * Previously stored in localStorage (which caps out around 5 MB total).
+ * Now backed by IndexedDB with automatic migration from the legacy
+ * localStorage key on first load.
  */
 export interface StoredFont {
   /** Family name as registered with `document.fonts.add()`. */
@@ -50,6 +52,47 @@ const registerOne = async (font: StoredFont): Promise<boolean> => {
   }
 };
 
+const idbFontStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    const fonts = await loadAllFontsFromIDB();
+    if (fonts.length === 0) {
+      // Check legacy localStorage for migration
+      const legacy = localStorage.getItem(name);
+      if (legacy) {
+        // Migrate to IDB
+        try {
+          const parsed = JSON.parse(legacy);
+          if (parsed?.state?.customFonts) {
+            for (const f of parsed.state.customFonts) {
+              await saveFontToIDB(f);
+            }
+          }
+          localStorage.removeItem(name);
+        } catch {
+          localStorage.removeItem(name);
+        }
+        return legacy; // Return it once so zustand hydrates
+      }
+      return null;
+    }
+    return JSON.stringify({ state: { customFonts: fonts }, version: 0 });
+  },
+  setItem: async (_name: string, value: string): Promise<void> => {
+    const parsed = JSON.parse(value);
+    const fonts: StoredFont[] = parsed?.state?.customFonts || [];
+    // Clear-and-rewrite strategy: acceptable for the expected font count
+    // (< 10 custom fonts typically). A future optimization could use
+    // individual put/delete operations to avoid rewriting all blobs.
+    await clearAllFontsFromIDB();
+    for (const f of fonts) {
+      await saveFontToIDB(f);
+    }
+  },
+  removeItem: async (_name: string): Promise<void> => {
+    await clearAllFontsFromIDB();
+  },
+};
+
 export const useFontsStore = create<FontsState>()(
   persist(
     (set, get) => ({
@@ -71,10 +114,6 @@ export const useFontsStore = create<FontsState>()(
       removeFont: index => {
         const next = get().customFonts.filter((_, i) => i !== index);
         set({ customFonts: next });
-        // We intentionally don't unregister the FontFace from
-        // `document.fonts`: doing so would require holding the
-        // FontFace reference per entry, and stale registrations are
-        // harmless (the family just stops being used).
       },
 
       setLoading: v => set({ isLoading: v }),
@@ -89,7 +128,7 @@ export const useFontsStore = create<FontsState>()(
     }),
     {
       name: 'mangalens-fonts',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => idbFontStorage),
       // Persist only the actual font list. Loading flags are session-only.
       partialize: state => ({ customFonts: state.customFonts }),
     },

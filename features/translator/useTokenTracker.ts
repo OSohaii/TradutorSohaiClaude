@@ -3,17 +3,8 @@ import type { TokenUsage } from '../../services/api/pipelineApi';
 
 /**
  * Per-session token + cost tracking. Resets whenever the page reloads
- * (this is intentional — the user-facing badge in the sidebar is "this
+ * (this is intentional -- the user-facing badge in the sidebar is "this
  * tab right now", not "ever").
- *
- * Pre-PR #8 this was inlined in App.tsx as two useStates plus a
- * `handleTokenUsage` closure. Pulling it into its own hook is the
- * smallest possible step toward the Phase 4 feature-folder layout
- * (`features/translator/`): the concern is small, completely
- * self-contained, and has no external dependencies beyond the BFF's
- * `TokenUsage` type. Pipeline extraction is the next step but stays
- * out of this PR because of its coupling to App.tsx's settings-modal
- * UI state.
  *
  * Pricing tiers below are estimates (USD per 1M tokens) and only
  * apply to Gemini variants; non-Gemini engines (DeepL, Google
@@ -32,6 +23,8 @@ export interface TokenTracker {
   totalCost: number;
   /** Sum of `totalTokens.input + totalTokens.output`. */
   displayedTotalTokens: number;
+  /** Per-engine breakdown of tokens and cost. */
+  tokensByEngine: Record<string, { input: number; output: number; cost: number }>;
   /** Feed a `TokenUsage` payload from the BFF pipeline response. */
   handleTokenUsage: (data: TokenUsage) => void;
 }
@@ -39,6 +32,7 @@ export interface TokenTracker {
 export const useTokenTracker = (): TokenTracker => {
   const [totalTokens, setTotalTokens] = useState({ input: 0, output: 0 });
   const [totalCost, setTotalCost] = useState(0);
+  const [tokensByEngine, setTokensByEngine] = useState<Record<string, { input: number; output: number; cost: number }>>({});
 
   const handleTokenUsage = (data: TokenUsage): void => {
     setTotalTokens(prev => ({
@@ -52,6 +46,19 @@ export const useTokenTracker = (): TokenTracker => {
     const costIn = (data.input / 1_000_000) * tier.input;
     const costOut = (data.output / 1_000_000) * tier.output;
     setTotalCost(prev => prev + costIn + costOut);
+
+    const key = data.engine || data.model || 'unknown';
+    setTokensByEngine(prev => {
+      const existing = prev[key] || { input: 0, output: 0, cost: 0 };
+      return {
+        ...prev,
+        [key]: {
+          input: existing.input + data.input,
+          output: existing.output + data.output,
+          cost: existing.cost + costIn + costOut,
+        },
+      };
+    });
   };
 
   const displayedTotalTokens = useMemo(
@@ -59,5 +66,5 @@ export const useTokenTracker = (): TokenTracker => {
     [totalTokens.input, totalTokens.output],
   );
 
-  return { totalTokens, totalCost, displayedTotalTokens, handleTokenUsage };
+  return { totalTokens, totalCost, displayedTotalTokens, tokensByEngine, handleTokenUsage };
 };

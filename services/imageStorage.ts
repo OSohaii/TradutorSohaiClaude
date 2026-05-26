@@ -1,7 +1,8 @@
 // IndexedDB storage para imagens grandes da biblioteca
 const DB_NAME = 'mangalens_library_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'images';
+const FONTS_STORE_NAME = 'fonts';
 
 let db: IDBDatabase | null = null;
 
@@ -31,6 +32,11 @@ export const initDB = (): Promise<IDBDatabase> => {
       // Criar store para imagens se não existir
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+
+      // Criar store para fonts (upgrade v1 -> v2)
+      if (!database.objectStoreNames.contains(FONTS_STORE_NAME)) {
+        database.createObjectStore(FONTS_STORE_NAME, { keyPath: 'name' });
       }
     };
   });
@@ -200,5 +206,77 @@ export const getStorageSize = async (): Promise<number> => {
     };
     
     request.onerror = () => reject(request.error);
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Font storage (IndexedDB)
+// ---------------------------------------------------------------------------
+
+export const saveFontToIDB = async (font: { name: string; value: string; data: string }): Promise<void> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([FONTS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(FONTS_STORE_NAME);
+
+    const request = store.put(font);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => {
+      console.error('Erro ao salvar fonte:', request.error);
+      reject(request.error);
+    };
+  });
+};
+
+export const loadAllFontsFromIDB = async (): Promise<Array<{ name: string; value: string; data: string }>> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([FONTS_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(FONTS_STORE_NAME);
+
+    const request = store.getAll();
+
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => {
+      console.error('Erro ao carregar fontes:', request.error);
+      reject(request.error);
+    };
+  });
+};
+
+export const deleteFontFromIDB = async (name: string): Promise<void> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([FONTS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(FONTS_STORE_NAME);
+
+    const request = store.delete(name);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => {
+      console.error('Erro ao deletar fonte:', request.error);
+      reject(request.error);
+    };
+  });
+};
+
+export const clearAllFontsFromIDB = async (): Promise<void> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([FONTS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(FONTS_STORE_NAME);
+
+    const request = store.clear();
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => {
+      console.error('Erro ao limpar fontes:', request.error);
+      reject(request.error);
+    };
   });
 };
