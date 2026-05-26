@@ -109,6 +109,20 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
       return;
     }
 
+    // B11 fix (PR #7): apply weight/style explicitly before measuring.
+    // The JSX inline-style above already sets these, but the binary
+    // search below mutates `style.fontSize` directly and reads
+    // `scrollWidth`/`scrollHeight` between iterations. Setting weight
+    // and style on the same path makes the measurement self-contained
+    // and immune to React re-render timing — bold/italic text now
+    // gets a fontSize sized for the actual glyphs the user will see,
+    // instead of the regular-weight baseline.
+    textSpan.style.fontFamily = effectiveFont;
+    textSpan.style.fontWeight = effectiveFontWeight;
+    textSpan.style.fontStyle = effectiveFontStyle;
+    textSpan.style.lineHeight = effectiveLineHeight.toString();
+    textSpan.style.letterSpacing = letterSpacing ? `${letterSpacing}px` : 'normal';
+
     const adjustFontSize = () => {
       const { width: cWidth, height: cHeight } = container.getBoundingClientRect();
       const paddingX = 6;
@@ -146,7 +160,7 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
     const observer = new ResizeObserver(adjustFontSize);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [translatedText, width, height, effectiveFont, fontSize, effectiveFontWeight, effectiveFontStyle, isPaintSelectMode, defaultFont, isCurrentlyEditingText]);
+  }, [translatedText, width, height, effectiveFont, fontSize, effectiveFontWeight, effectiveFontStyle, effectiveLineHeight, letterSpacing, isPaintSelectMode, defaultFont, isCurrentlyEditingText]);
 
   const handleMouseDown = (e: React.MouseEvent, type: 'move' | 'nw' | 'ne' | 'se' | 'sw') => {
     if (!isEditing || !onUpdate || isPaintSelectMode || isCurrentlyEditingText) return;
@@ -161,6 +175,13 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
     const startBox = { ...localBox };
     const parentEl = containerRef.current?.offsetParent as HTMLElement;
     if (!parentEl) return;
+    // B7 (validated PR #7, no fix needed): MangaViewer applies zoom via
+    // `transform: scale(${zoom})` on an ancestor. `getBoundingClientRect`
+    // already returns the *visually scaled* width/height of `parentEl`,
+    // so the ratio (mouseDelta / parentRect.width) is dimensionless and
+    // independent of zoom: a 200px screen-pixel drag at zoom=2x divides
+    // by a 1600px visual width and yields the same normalized box delta
+    // as a 100px drag at zoom=1x. The math holds for every zoom value.
     const parentRect = parentEl.getBoundingClientRect();
 
     const onMouseMove = (moveEvent: MouseEvent) => {
