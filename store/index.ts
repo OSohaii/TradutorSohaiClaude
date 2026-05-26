@@ -6,7 +6,8 @@ export { useAuthStore } from './useAuthStore';
 export type { AuthState } from './useAuthStore';
 
 export { useTranslatorStore } from './useTranslatorStore';
-export type { TranslatorState, EngineId } from './useTranslatorStore';
+export type { TranslatorState } from './useTranslatorStore';
+export type { EngineId } from '../types';
 
 export { useFontsStore } from './useFontsStore';
 export type { StoredFont } from './useFontsStore';

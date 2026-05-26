@@ -1,3 +1,27 @@
+export type EngineId =
+  | 'GEMINI_FLASH'
+  | 'GEMINI_FLASH_FULL'
+  | 'GEMINI_3_FLASH'
+  | 'GEMINI_3_FLASH_FULL'
+  | 'GEMINI_PRO'
+  | 'GEMINI_PRO_FULL'
+  | 'ICHIGO'
+  | 'TORII'
+  | 'DEEPL'
+  | 'GOOGLE';
+
+export type OcrCapability = 'ocr';
+export type TranslateCapability = 'translate';
+export type ImageOutCapability = 'image-out';
+export type EngineCapability = OcrCapability | TranslateCapability | ImageOutCapability;
+
+export interface Engine {
+  id: EngineId;
+  label: string;
+  capabilities: EngineCapability[];
+  pricing?: { input: number; output: number };
+}
+
 export interface BoundingBox {
   ymin: number;
   xmin: number;

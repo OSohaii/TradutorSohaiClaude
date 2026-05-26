@@ -1,10 +1,10 @@
 import { useAuthStore, useTranslatorStore, useSessionStore } from '../../store';
 import { useTokenTracker } from './useTokenTracker';
+import { planPipeline } from './planPipeline';
 import { performIchigoLogout } from './ichigoLogout';
 import {
   ApiError,
   ByokKeys,
-  EngineId as ApiEngineId,
   runPipeline as runPipelineApi,
 } from '../../services/api/pipelineApi';
 import { createTrackedObjectURL } from '../../services/blobUrls';
@@ -82,20 +82,48 @@ export const useTranslatePipeline = (
     const usingTorii = ocrEngine === 'TORII' || transEngine === 'TORII';
     const wantsCleaner = useToriiForCleaning && !usingTorii;
 
-    const response = await runPipelineApi(
-      {
-        imageBase64: base64,
-        ocr: { engine: ocrEngine as ApiEngineId },
-        translation: { engine: transEngine as ApiEngineId },
-        cleaner: { enabled: wantsCleaner, engine: 'TORII' },
-        options: {
-          targetLanguage: 'Portugues (Brasil)',
-          targetLangCode: 'pt-BR',
-          ichigoModel,
+    const plan = planPipeline(ocrEngine, transEngine, { useToriiForCleaning: wantsCleaner });
+    console.debug('[pipeline] plan:', plan);
+
+    let response;
+    try {
+      response = await runPipelineApi(
+        {
+          imageBase64: base64,
+          ocr: { engine: ocrEngine },
+          translation: { engine: transEngine },
+          cleaner: { enabled: wantsCleaner, engine: 'TORII' },
+          options: {
+            targetLanguage: 'Portugues (Brasil)',
+            targetLangCode: 'pt-BR',
+            ichigoModel,
+          },
         },
-      },
-      buildByok(),
-    );
+        buildByok(),
+      );
+    } catch (err) {
+      // If the cleaner caused the failure, retry without it
+      if (wantsCleaner && err instanceof ApiError && err.engine === 'torii') {
+        console.warn('[pipeline] cleaner failed, retrying without:', err.message);
+        response = await runPipelineApi(
+          {
+            imageBase64: base64,
+            ocr: { engine: ocrEngine },
+            translation: { engine: transEngine },
+            cleaner: { enabled: false },
+            options: {
+              targetLanguage: 'Portugues (Brasil)',
+              targetLangCode: 'pt-BR',
+              ichigoModel,
+            },
+          },
+          buildByok(),
+        );
+        response.warnings = [...(response.warnings || []), `Cleaner falhou: ${(err as ApiError).message}`];
+      } else {
+        throw err;
+      }
+    }
 
     if (response.tokens) handleTokenUsage(response.tokens);
     if (response.warnings && response.warnings.length > 0) {

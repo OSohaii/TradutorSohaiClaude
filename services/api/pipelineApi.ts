@@ -6,24 +6,12 @@
  * Google Translate) all happen on the server, so no provider keys are ever
  * embedded in the bundle.
  */
-import { TextBubble } from '../../types';
+import { TextBubble, EngineId } from '../../types';
 import { ApiError, ByokKeys, apiFetch } from './client';
 
 // ---------------------------------------------------------------------------
 // Wire types — must mirror the Pydantic schemas in backend/app/schemas/.
 // ---------------------------------------------------------------------------
-
-export type EngineId =
-  | 'GEMINI_FLASH'
-  | 'GEMINI_FLASH_FULL'
-  | 'GEMINI_3_FLASH'
-  | 'GEMINI_3_FLASH_FULL'
-  | 'GEMINI_PRO'
-  | 'GEMINI_PRO_FULL'
-  | 'ICHIGO'
-  | 'TORII'
-  | 'DEEPL'
-  | 'GOOGLE';
 
 export interface OcrConfig {
   engine: EngineId;
@@ -57,6 +45,7 @@ export interface TokenUsage {
   output: number;
   total: number;
   model: string;
+  engine?: string;
 }
 
 export interface PipelineResponse {
@@ -143,3 +132,4 @@ export function getHealth(): Promise<HealthResponse> {
 // Re-export so call sites only need this module.
 export { ApiError } from './client';
 export type { ByokKeys } from './client';
+export type { EngineId } from '../../types';
