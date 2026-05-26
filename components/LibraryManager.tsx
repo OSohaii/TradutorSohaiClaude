@@ -119,9 +119,34 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
 
     setIsSaving(true);
     try {
-      await library.addPagesToChapter(selectedManga.id, chapter.id, doneImages);
-      alert(`${doneImages.length} página(s) salva(s) com sucesso!`);
+      // B15: addPagesToChapter now reports per-image conversion errors
+      // (CORS-blocked URLs, broken images, etc.) instead of silently
+      // creating empty pages. Successful pages are already committed
+      // when the call resolves.
+      const failures = await library.addPagesToChapter(
+        selectedManga.id,
+        chapter.id,
+        doneImages,
+      );
+
+      const succeeded = doneImages.length - failures.length;
+      if (failures.length === 0) {
+        alert(`${succeeded} página(s) salva(s) com sucesso!`);
+      } else if (succeeded === 0) {
+        alert(
+          `Nenhuma página foi salva. Erros:\n` +
+            failures.map(f => `• ${f.fileName}: ${f.error.message}`).join('\n'),
+        );
+      } else {
+        alert(
+          `${succeeded} página(s) salva(s).\n` +
+            `${failures.length} falharam:\n` +
+            failures.map(f => `• ${f.fileName}: ${f.error.message}`).join('\n'),
+        );
+      }
     } catch (e) {
+      // Reaches here only if the store/persistence layer itself
+      // exploded, not on per-image failures.
       console.error('Erro ao salvar:', e);
       alert('Erro ao salvar páginas.');
     } finally {

@@ -14,6 +14,7 @@ import {
   getMangaById,
   getChapterById,
   migrateLegacyImagesToIDB,
+  PageConversionFailure,
 } from '../services/libraryService';
 import { deleteImages } from '../services/imageStorage';
 
@@ -54,12 +55,16 @@ export interface LibraryStoreState extends LibraryState {
    * the originals to IndexedDB via `libraryService`). Async because the
    * page conversion creates thumbnails and base64 versions of the
    * images.
+   *
+   * Returns the per-image failure list (B15). The successful pages are
+   * already committed to the store/localStorage when this resolves;
+   * callers display the failures with `fileName` + `error.message`.
    */
   addPagesToChapter: (
     mangaId: string,
     chapterId: string,
     images: ProcessedImage[],
-  ) => Promise<void>;
+  ) => Promise<PageConversionFailure[]>;
 
   // ---- Selection cursors (UI helpers) ----
   setCurrentMangaId: (id: string | null) => void;
@@ -173,10 +178,18 @@ export const useLibraryStore = create<LibraryStoreState>()((set, get) => ({
   addPagesToChapter: async (mangaId, chapterId, images) => {
     // The pure helper runs `processedImageToPage` on each image, which
     // writes the originals to IndexedDB and trims the metadata down to
-    // what fits in localStorage. Returns the new state.
-    const next = await addPagesToChapterPure(get(), mangaId, chapterId, images);
+    // what fits in localStorage. Returns the new state plus a per-image
+    // failure list (B15) so callers can surface broken pages to the
+    // user.
+    const { state: next, failures } = await addPagesToChapterPure(
+      get(),
+      mangaId,
+      chapterId,
+      images,
+    );
     set(next);
     saveLibrary(next);
+    return failures;
   },
 
   setCurrentMangaId: id =>
