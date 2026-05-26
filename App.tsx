@@ -3,10 +3,14 @@ import { ProcessedImage, TextBubble, ViewMode } from './types';
 import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontOption, FontGroup } from './components/MangaViewer';
 import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
-import { processMangaPage, TokenUsageData } from './services/geminiService';
-import { performTranslation } from './services/translationService';
-import { loginIchigo, translateImageWithIchigo, ICHIGO_MODELS } from './services/ichigoService';
-import { translateWithTorii } from './services/toriiService';
+import {
+  ApiError,
+  ByokKeys,
+  EngineId as ApiEngineId,
+  TokenUsage,
+  ichigoLogin as ichigoLoginApi,
+  runPipeline as runPipelineApi,
+} from './services/api/pipelineApi';
 import { 
   BookOpenIcon, 
   TrashIcon, 
@@ -114,7 +118,7 @@ const App: React.FC = () => {
   const [showIchigoSettings, setShowIchigoSettings] = useState(false);
   const [showToriiSettings, setShowToriiSettings] = useState(false);
   const [showDeepLSettings, setShowDeepLSettings] = useState(false);
-  const [showGoogleSettings, setShowGoogleSettings] = useState(false);
+  const [showGeminiSettings, setShowGeminiSettings] = useState(false);
   const [showFontSettings, setShowFontSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
@@ -133,7 +137,21 @@ const App: React.FC = () => {
   const [toriiApiKey, setToriiApiKey] = useState(localStorage.getItem('torii_key') || '');
   const [toriiSaveKey, setToriiSaveKey] = useState(true);
   
-  const [googleApiKey, setGoogleApiKey] = useState(localStorage.getItem('google_api_key') || '');
+  // Gemini BYOK (variable was historically named "googleApiKey" because the
+  // localStorage entry was "google_api_key"; both names referred to the user's
+  // own Gemini API key). We migrate the old localStorage entry on first load
+  // so existing users don't lose their key.
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
+    const newKey = localStorage.getItem('gemini_api_key');
+    if (newKey) return newKey;
+    const legacy = localStorage.getItem('google_api_key');
+    if (legacy) {
+      localStorage.setItem('gemini_api_key', legacy);
+      localStorage.removeItem('google_api_key');
+      return legacy;
+    }
+    return '';
+  });
 
   // Torii Advanced Configs
   const [toriiInternalTrans, setToriiInternalTrans] = useState(() => localStorage.getItem('manga_torii_trans') || 'google_translate');
@@ -186,7 +204,9 @@ const App: React.FC = () => {
   }, []);
 
   // --- Token Calculation Logic ---
-  const handleTokenUsage = (data: TokenUsageData) => {
+  // The BFF returns combined token usage in the pipeline response. This
+  // accumulates the running total and estimates cost based on the model.
+  const handleTokenUsage = (data: TokenUsage) => {
     setTotalTokens(prev => ({
       input: prev.input + data.input,
       output: prev.output + data.output
@@ -197,8 +217,9 @@ const App: React.FC = () => {
     // Pro:   ~1.25/1M In, ~5.00/1M Out
     let costIn = 0;
     let costOut = 0;
-    
-    if (data.model.includes('flash') || data.model.includes('lite')) {
+
+    const model = (data.model || '').toLowerCase();
+    if (model.includes('flash') || model.includes('lite')) {
        costIn = (data.input / 1000000) * 0.10;
        costOut = (data.output / 1000000) * 0.40;
     } else {
@@ -251,10 +272,10 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsLoggingIn(true);
     try {
-      const token = await loginIchigo(ichigoEmail, ichigoPassword);
-      setIchigoToken(token);
+      const { accessToken } = await ichigoLoginApi(ichigoEmail, ichigoPassword);
+      setIchigoToken(accessToken);
       if (ichigoRemember) {
-        localStorage.setItem('ichigo_token', token);
+        localStorage.setItem('ichigo_token', accessToken);
         localStorage.setItem('ichigo_email', ichigoEmail);
       } else {
         localStorage.removeItem('ichigo_token');
@@ -262,7 +283,9 @@ const App: React.FC = () => {
       }
       if (ocrEngine !== 'ICHIGO') setOcrEngine('ICHIGO');
     } catch (error) {
-      alert("Falha no login: Verifique suas credenciais.");
+      const message =
+        error instanceof ApiError ? error.message : 'Falha no login: verifique suas credenciais.';
+      alert(message);
     } finally {
       setIsLoggingIn(false);
     }
@@ -285,9 +308,13 @@ const App: React.FC = () => {
     setShowDeepLSettings(false);
   };
   
-  const saveGoogleKey = () => {
-    localStorage.setItem('google_api_key', googleApiKey);
-    setShowGoogleSettings(false);
+  const saveGeminiKey = () => {
+    if (geminiApiKey) {
+      localStorage.setItem('gemini_api_key', geminiApiKey);
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+    setShowGeminiSettings(false);
   };
 
   // --- Font Management ---
@@ -376,75 +403,69 @@ const App: React.FC = () => {
   }, [customFonts, fontSearch]);
 
 
+  /**
+   * Helper: convert a base64-encoded image returned by the BFF (Torii full
+   * page or cleaner output) into a blob: URL the viewer can render directly.
+   */
+  const base64ToObjectUrl = (b64: string, mime = 'image/png'): string => {
+    const byteString = atob(b64);
+    const bytes = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    return URL.createObjectURL(blob);
+  };
+
+  /**
+   * Build BYOK headers from the current settings panels. Empty strings stay
+   * undefined so the backend falls back to its server-configured key.
+   */
+  const buildByok = (): ByokKeys => ({
+    gemini: geminiApiKey || undefined,
+    deepl: deepLKey || undefined,
+    torii: toriiApiKey || undefined,
+    ichigo: ichigoToken || undefined,
+  });
+
   // --- Pipeline ---
-  const runPipeline = async (base64: string, file: File): Promise<{ bubbles: TextBubble[], translatedImageUrl?: string }> => {
-    const useToriiFull = transEngine === 'TORII' || ocrEngine === 'TORII';
+  // The frontend no longer makes routing decisions or talks to providers
+  // directly. We assemble the request, hand it to the BFF, and translate the
+  // response into the shape the viewer expects.
+  const runPipeline = async (
+    base64: string,
+  ): Promise<{ bubbles: TextBubble[]; translatedImageUrl?: string }> => {
+    const usingTorii = ocrEngine === 'TORII' || transEngine === 'TORII';
+    const wantsCleaner = useToriiForCleaning && !usingTorii;
 
-    if (useToriiFull) {
-      if (!toriiApiKey) throw new Error("Chave API do Torii não configurada.");
-      const resultBlob = await translateWithTorii(file, toriiApiKey, {
-        translator: toriiInternalTrans,
-        strokeDisabled: toriiStrokeDisabled,
-        inpaintOnly: toriiInpaintOnly
-      });
-      return { bubbles: [], translatedImageUrl: URL.createObjectURL(resultBlob) };
+    const response = await runPipelineApi(
+      {
+        imageBase64: base64,
+        ocr: { engine: ocrEngine as ApiEngineId },
+        translation: { engine: transEngine as ApiEngineId },
+        cleaner: { enabled: wantsCleaner, engine: 'TORII' },
+        options: {
+          targetLanguage: 'Português (Brasil)',
+          targetLangCode: 'pt-BR',
+          ichigoModel,
+        },
+      },
+      buildByok(),
+    );
+
+    if (response.tokens) handleTokenUsage(response.tokens);
+    if (response.warnings && response.warnings.length > 0) {
+      response.warnings.forEach(w => console.warn('[pipeline]', w));
     }
 
-    const promises: Promise<any>[] = [];
-    let bubblesPromise: Promise<TextBubble[]>;
-    
-    // --- Determine OCR Strategy ---
-    if (ocrEngine === 'ICHIGO') {
-      if (!ichigoToken) throw new Error("Faça login no Ichigo para usar OCR.");
-      bubblesPromise = translateImageWithIchigo(base64, ichigoToken, 'Português (Brasil)', ichigoModel);
-    } else {
-      const model = GEMINI_MODELS[ocrEngine] || 'gemini-3-pro-preview';
-      
-      // AUTO-OPTIMIZATION LOGIC:
-      // 1. Check if we are running a "Unified" pipeline (Same engine for OCR and Translation).
-      //    Example: Flash + Flash, or Pro + Pro.
-      //    In this case, we perform OCR + Translation in a SINGLE step (skipping the second step).
-      const isNativeGeminiMatch = ocrEngine === transEngine && (ocrEngine === 'GEMINI_FLASH' || ocrEngine === 'GEMINI_3_FLASH' || ocrEngine === 'GEMINI_PRO');
-      const isExplicitFull = ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL';
-      const performFullPass = isNativeGeminiMatch || isExplicitFull;
-
-      // 2. If it's NOT a full pass (e.g. Flash OCR + Pro Trans), we instruct the OCR step 
-      //    to SKIP translation (saving tokens).
-      const skipTranslationInOCR = !performFullPass; 
-
-      // Pass the custom googleApiKey if available
-      bubblesPromise = processMangaPage(base64, model, googleApiKey, handleTokenUsage, skipTranslationInOCR);
-    }
-    promises.push(bubblesPromise);
-
-    let cleanerPromise: Promise<Blob> | null = null;
-    if (useToriiForCleaning && toriiApiKey) {
-      cleanerPromise = translateWithTorii(file, toriiApiKey, { translator: 'gemini-2.5-flash', strokeDisabled: false, inpaintOnly: true });
-      promises.push(cleanerPromise);
+    // Either Torii full mode produced a translated page, or the cleaner ran
+    // and produced a text-free version. Both come back as base64.
+    let translatedImageUrl: string | undefined;
+    if (response.translatedImageBase64) {
+      translatedImageUrl = base64ToObjectUrl(response.translatedImageBase64);
+    } else if (response.cleanedImageBase64) {
+      translatedImageUrl = base64ToObjectUrl(response.cleanedImageBase64);
     }
 
-    const results = await Promise.all(promises);
-    let bubbles = results[0] as TextBubble[];
-    const cleanerBlob = cleanerPromise ? results[1] as Blob : null;
-
-    // --- Translation Step ---
-    // Only proceed if bubbles exist AND we need a second pass.
-    // We skip this step if "performFullPass" logic determined we already translated in Step 1.
-    const isNativeGeminiMatch = ocrEngine === transEngine && (ocrEngine === 'GEMINI_FLASH' || ocrEngine === 'GEMINI_3_FLASH' || ocrEngine === 'GEMINI_PRO');
-    const isExplicitFull = ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL';
-    const alreadyTranslatedInOCR = isNativeGeminiMatch || isExplicitFull;
-
-    if (bubbles.length > 0 && !alreadyTranslatedInOCR) {
-      const geminiModel = GEMINI_MODELS[transEngine];
-      bubbles = await performTranslation(bubbles, transEngine, { 
-        deepLKey, 
-        geminiModel, 
-        googleApiKey, 
-        onUsage: handleTokenUsage // Pass usage handler to translation
-      });
-    }
-
-    return { bubbles, translatedImageUrl: cleanerBlob ? URL.createObjectURL(cleanerBlob) : undefined };
+    return { bubbles: response.bubbles, translatedImageUrl };
   };
 
   const processImage = async (imageObj: ProcessedImage, file: File) => {
@@ -453,7 +474,7 @@ const App: React.FC = () => {
       // Remove data prefix if exists for API calls
       const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
 
-      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean, file);
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
       
       const completedImage: ProcessedImage = { ...imageObj, base64: base64Clean, bubbles, translatedImageUrl, status: 'done' };
 
@@ -461,22 +482,53 @@ const App: React.FC = () => {
       setCurrentImage(prev => prev && prev.id === imageObj.id ? completedImage : prev);
     } catch (error: any) {
       console.error(`Error processing ${imageObj.fileName}:`, error);
-      let errorMsg = "Falha na tradução.";
-      if (error.message?.includes("429")) errorMsg = "Limite do plano excedido.";
-      if (error.message?.includes("Login") || error.message?.includes("401")) {
-         errorMsg = "Erro de Autenticação.";
-         if (ocrEngine === 'ICHIGO') { logoutIchigo(); setShowIchigoSettings(true); }
-      }
-      if ((error.message?.includes("Torii") || error.message?.includes("Key") && (transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning))) {
-         setShowToriiSettings(true);
-      }
-      if (transEngine === 'DEEPL' && error.message?.includes("DeepL")) setShowDeepLSettings(true);
-      if (error.message?.includes("API Key is missing") && (ocrEngine.includes('GEMINI') || transEngine.includes('GEMINI'))) setShowGoogleSettings(true);
-
+      const { errorMsg } = handlePipelineError(error);
       const errorImage: ProcessedImage = { ...imageObj, status: 'error', errorMessage: errorMsg };
       setHistory(prev => prev.map(img => img.id === imageObj.id ? errorImage : img));
       setCurrentImage(prev => prev && prev.id === imageObj.id ? errorImage : prev);
     }
+  };
+
+  /**
+   * Centralised pipeline error handler. Replaces the substring-matching mess
+   * the original code used (which had bug B14 — operator-precedence bug —
+   * and wrong matches when the BFF returns Portuguese-only messages).
+   *
+   * The BFF returns ApiError instances with structured `code` + `engine`
+   * fields, so we can react precisely instead of guessing.
+   */
+  const handlePipelineError = (error: unknown): { errorMsg: string } => {
+    if (error instanceof ApiError) {
+      // Authentication / missing key → open the matching settings modal.
+      if (error.code === 'AUTH' || error.code === 'INVALID_KEY') {
+        switch (error.engine) {
+          case 'ichigo':
+            if (error.code === 'AUTH') logoutIchigo();
+            setShowIchigoSettings(true);
+            break;
+          case 'gemini':
+            setShowGeminiSettings(true);
+            break;
+          case 'deepl':
+            setShowDeepLSettings(true);
+            break;
+          case 'torii':
+            setShowToriiSettings(true);
+            break;
+        }
+      }
+
+      const msgByCode: Partial<Record<typeof error.code, string>> = {
+        RATE_LIMIT: 'Limite de uso atingido. Tente novamente em instantes.',
+        QUOTA: 'Cota do provedor atingida.',
+        AUTH: 'Erro de autenticação.',
+        INVALID_KEY: 'Chave de API necessária ou inválida.',
+        NETWORK: 'Falha de rede.',
+      };
+      return { errorMsg: msgByCode[error.code] ?? error.message };
+    }
+
+    return { errorMsg: error instanceof Error ? error.message : 'Falha na tradução.' };
   };
 
   const handleRetranslate = async () => {
@@ -486,19 +538,25 @@ const App: React.FC = () => {
     setCurrentImage(processingImage);
 
     try {
-      const res = await fetch(currentImage.imageUrl);
-      const blob = await res.blob();
-      const file = new File([blob], currentImage.fileName, { type: blob.type });
-      const base64 = await fileToBase64(file);
-      const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
-      processingImage.base64 = base64Clean;
+      // Reuse the base64 already stored on the image when available; fall
+      // back to refetching the source URL only if it isn't.
+      let base64Clean = currentImage.base64;
+      if (!base64Clean) {
+        const res = await fetch(currentImage.imageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], currentImage.fileName, { type: blob.type });
+        const dataUrl = await fileToBase64(file);
+        base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        processingImage.base64 = base64Clean;
+      }
 
-      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean, file);
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
       const doneImage = { ...processingImage, status: 'done' as const, bubbles, translatedImageUrl };
       setHistory(prev => prev.map(img => img.id === currentImage.id ? doneImage : img));
       setCurrentImage(doneImage);
     } catch (error: any) {
-      const errorImage = { ...processingImage, status: 'error' as const, errorMessage: error.message || "Erro" };
+      const { errorMsg } = handlePipelineError(error);
+      const errorImage = { ...processingImage, status: 'error' as const, errorMessage: errorMsg };
       setHistory(prev => prev.map(img => img.id === currentImage.id ? errorImage : img));
       setCurrentImage(errorImage);
     }
@@ -824,7 +882,7 @@ const App: React.FC = () => {
               <button onClick={() => setShowIchigoSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${ichigoToken ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Ichigo"><UserCircleIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowToriiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${toriiApiKey ? 'bg-pink-500/10 border-pink-500/30 text-pink-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Torii"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowDeepLSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${deepLKey ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="DeepL"><LanguageIcon className="w-5 h-5"/></button>
-              <button onClick={() => setShowGoogleSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${googleApiKey ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Google Gemini Key"><CommandLineIcon className="w-5 h-5"/></button>
+              <button onClick={() => setShowGeminiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${geminiApiKey ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Google Gemini Key (BYOK)"><CommandLineIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowFontSettings(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700" title="Gerenciar Fontes"><DocumentPlusIcon className="w-5 h-5"/></button>
            </div>
         </div>
@@ -1239,31 +1297,33 @@ const App: React.FC = () => {
       )}
 
       {/* Google Gemini API Key Settings */}
-      {showGoogleSettings && (
+      {showGeminiSettings && (
           <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
              <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-sm p-6 relative animate-fade-in-up">
-               <button onClick={() => setShowGoogleSettings(false)} className="absolute top-4 right-4 text-slate-400"><XMarkIcon className="w-5 h-5"/></button>
+               <button onClick={() => setShowGeminiSettings(false)} className="absolute top-4 right-4 text-slate-400"><XMarkIcon className="w-5 h-5"/></button>
                <div className="flex items-center gap-2 mb-4">
                   <CommandLineIcon className="w-6 h-6 text-orange-400" />
                   <h3 className="text-xl font-bold text-white">Google Gemini API</h3>
                </div>
-               
+
                <p className="text-xs text-slate-400 mb-4">
-                  Insira sua chave de API pessoal do Google AI Studio. Se deixado em branco, o sistema tentará usar a chave padrão do servidor (se configurada).
+                  Insira sua própria chave do <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">Google AI Studio</a> para usar sua quota.
+                  Se deixado em branco, o servidor usa a chave padrão (quando configurada).
+                  Sua chave fica apenas no seu navegador e é enviada ao backend somente no momento da tradução.
                </p>
 
                <div className="space-y-2 mb-4">
-                  <label className="text-xs font-medium text-slate-300">API Key</label>
-                  <input 
-                    type="password" 
-                    placeholder="AIzaSy..." 
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none" 
-                    value={googleApiKey} 
-                    onChange={e => setGoogleApiKey(e.target.value)} 
+                  <label className="text-xs font-medium text-slate-300">API Key (opcional — BYOK)</label>
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    value={geminiApiKey}
+                    onChange={e => setGeminiApiKey(e.target.value)}
                   />
                </div>
-               
-               <button onClick={saveGoogleKey} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 rounded-lg transition-colors shadow-lg shadow-orange-900/20">
+
+               <button onClick={saveGeminiKey} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 rounded-lg transition-colors shadow-lg shadow-orange-900/20">
                  Salvar Chave
                </button>
              </div>
