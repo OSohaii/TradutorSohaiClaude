@@ -10,6 +10,8 @@ export type EngineId =
   | 'DEEPL'
   | 'GOOGLE';
 
+// Forward declarations for Phase 5 engine registry. These types will be
+// consumed by the engine selection UI and capability-based routing logic.
 export type OcrCapability = 'ocr';
 export type TranslateCapability = 'translate';
 export type ImageOutCapability = 'image-out';

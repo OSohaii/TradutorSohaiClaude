@@ -80,7 +80,9 @@ const idbFontStorage: StateStorage = {
   setItem: async (_name: string, value: string): Promise<void> => {
     const parsed = JSON.parse(value);
     const fonts: StoredFont[] = parsed?.state?.customFonts || [];
-    // Sync IDB: clear and rewrite
+    // Clear-and-rewrite strategy: acceptable for the expected font count
+    // (< 10 custom fonts typically). A future optimization could use
+    // individual put/delete operations to avoid rewriting all blobs.
     await clearAllFontsFromIDB();
     for (const f of fonts) {
       await saveFontToIDB(f);

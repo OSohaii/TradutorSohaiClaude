@@ -83,6 +83,7 @@ export const useTranslatePipeline = (
     const wantsCleaner = useToriiForCleaning && !usingTorii;
 
     const plan = planPipeline(ocrEngine, transEngine, { useToriiForCleaning: wantsCleaner });
+    // Plan is used for debugging; future UI will display it.
     console.debug('[pipeline] plan:', plan);
 
     let response;

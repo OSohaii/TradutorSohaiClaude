@@ -584,15 +584,37 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                    : bubble.textAlign === 'right' ? sWidth * 0.45
                    : 0;
 
-      // Draw text-shadow (4 offsets to replicate CSS text-shadow)
-      const shadowOffset = 1;
-      ctx.fillStyle = '#ffffff';
-      for (const [dx, dy] of [[-shadowOffset, -shadowOffset], [shadowOffset, -shadowOffset], [-shadowOffset, shadowOffset], [shadowOffset, shadowOffset]] as [number, number][]) {
-        let lineY = textStartY;
-        for (const line of lines) {
-          ctx.fillText(line.trim(), textX + dx, lineY + dy);
-          lineY += bLineHeight;
+      // Draw text-shadow conditionally to match BubbleOverlay behavior:
+      // - showTextStroke ON: strong 4-offset white stroke
+      // - showTextStroke OFF + (transparent or sfx): glow effect (double white fill)
+      // - showTextStroke OFF + normal bubble: no shadow
+      // NOTE: Canvas 2D does not support letterSpacing natively, so it is
+      // intentionally omitted here. This matches browser canvas limitations.
+      if (showTextStroke) {
+        const shadowOffset = 1;
+        ctx.fillStyle = '#ffffff';
+        for (const [dx, dy] of [[-shadowOffset, -shadowOffset], [shadowOffset, -shadowOffset], [-shadowOffset, shadowOffset], [shadowOffset, shadowOffset]] as [number, number][]) {
+          let lineY = textStartY;
+          for (const line of lines) {
+            ctx.fillText(line.trim(), textX + dx, lineY + dy);
+            lineY += bLineHeight;
+          }
         }
+      } else if (isBubbleTransparent || bubble.type === 'sfx') {
+        // Glow effect: draw white text twice with slight blur to mimic
+        // CSS "0px 0px 3px white, 0px 0px 3px white"
+        ctx.save();
+        ctx.shadowColor = 'white';
+        ctx.shadowBlur = 3;
+        ctx.fillStyle = '#ffffff';
+        for (let pass = 0; pass < 2; pass++) {
+          let lineY = textStartY;
+          for (const line of lines) {
+            ctx.fillText(line.trim(), textX, lineY);
+            lineY += bLineHeight;
+          }
+        }
+        ctx.restore();
       }
 
       // Draw main text
