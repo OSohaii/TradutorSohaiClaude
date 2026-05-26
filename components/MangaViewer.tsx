@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
+import { useSessionStore } from '../store';
 import { 
   MagnifyingGlassPlusIcon, 
   MagnifyingGlassMinusIcon,
@@ -123,10 +124,31 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   // Inline Edit State
   const [editingBubbleId, setEditingBubbleId] = useState<string | null>(null);
   const [calculatedFontSizes, setCalculatedFontSizes] = useState<Record<string, number>>({});
-  
-  // Undo/Redo History
-  const [history, setHistory] = useState<TextBubble[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Bubble undo/redo lives in the session store now (B8/B9 fix in
+  // PR #8). The viewer reads `canUndo`/`canRedo` reactively and calls
+  // `pushSnapshot()` before each mutation. Pre-PR #8 history was
+  // local `useState<TextBubble[][]>`, snapshotting only the bubbles
+  // array; undo applied via per-bubble `onBubbleUpdate`, which silently
+  // skipped adds and deletes. The store now snapshots the full bubbles
+  // array per image and `undoBubbles` replaces it wholesale, so adds
+  // and deletes are reversible.
+  const pushSnapshot = useSessionStore(s => s.pushBubbleSnapshot);
+  const undoBubbles = useSessionStore(s => s.undoBubbles);
+  const redoBubbles = useSessionStore(s => s.redoBubbles);
+  const canUndo = useSessionStore(s => {
+    const cur = s.currentImage;
+    if (!cur || cur.id !== image.id) return false;
+    const entry = s.bubbleHistory[image.id];
+    return !!entry && entry.index > 0;
+  });
+  const canRedo = useSessionStore(s => {
+    const cur = s.currentImage;
+    if (!cur || cur.id !== image.id) return false;
+    const entry = s.bubbleHistory[image.id];
+    return !!entry && entry.index < entry.snapshots.length - 1;
+  });
+
   const [copiedStyle, setCopiedStyle] = useState<Partial<TextBubble> | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,35 +189,20 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     setEditingBubbleId(image.bubbles[newIndex].id);
   };
 
-  // Salvar estado para undo
+  // Salvar estado para undo (delegado ao store; preserva o nome local
+  // para minimizar churn nos call sites do toolbar).
   const saveToHistory = () => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push([...image.bubbles]);
-    setHistory(newHistory.slice(-20)); // Manter últimos 20 estados
-    setHistoryIndex(newHistory.length - 1);
+    pushSnapshot();
   };
 
-  // Undo
+  // Undo / Redo: thin wrappers ao redor do store (que substitui
+  // `image.bubbles` por completo, então add/delete são reversíveis).
   const handleUndo = () => {
-    if (historyIndex > 0) {
-      const prevState = history[historyIndex - 1];
-      setHistoryIndex(historyIndex - 1);
-      // Aplicar estado anterior
-      prevState.forEach(bubble => {
-        onBubbleUpdate && onBubbleUpdate(bubble);
-      });
-    }
+    undoBubbles();
   };
 
-  // Redo
   const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setHistoryIndex(historyIndex + 1);
-      nextState.forEach(bubble => {
-        onBubbleUpdate && onBubbleUpdate(bubble);
-      });
-    }
+    redoBubbles();
   };
 
   // Copiar estilo do balão atual
@@ -330,7 +337,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingBubbleId, activeBubble, isEditingMode, onBubbleUpdate, onBubbleDelete, calculatedFontSizes, history, historyIndex, copiedStyle]);
+  }, [editingBubbleId, activeBubble, isEditingMode, onBubbleUpdate, onBubbleDelete, calculatedFontSizes, copiedStyle, undoBubbles, redoBubbles]);
 
   useEffect(() => {
     setZoom(1);
@@ -769,16 +776,16 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                 <div className="w-px h-4 bg-slate-700 mx-1" />
                 <button 
                   onClick={handleUndo}
-                  disabled={historyIndex <= 0}
-                  className={`p-1.5 rounded-lg transition-colors ${historyIndex > 0 ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
+                  disabled={!canUndo}
+                  className={`p-1.5 rounded-lg transition-colors ${canUndo ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
                   title="Desfazer (Ctrl+Z)"
                 >
                   <ArrowUturnLeftIcon className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={handleRedo}
-                  disabled={historyIndex >= history.length - 1}
-                  className={`p-1.5 rounded-lg transition-colors ${historyIndex < history.length - 1 ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
+                  disabled={!canRedo}
+                  className={`p-1.5 rounded-lg transition-colors ${canRedo ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
                   title="Refazer (Ctrl+Shift+Z)"
                 >
                   <ArrowUturnRightIcon className="w-4 h-4" />
