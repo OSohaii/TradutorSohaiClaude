@@ -1,50 +1,9 @@
 import { Manga, Chapter, MangaPage, LibraryState } from '../types/library';
 import { ProcessedImage, TextBubble } from '../types';
-import { saveImage, loadImage } from './imageStorage';
+import { saveImage, loadImage, deleteImage, deleteImages } from './imageStorage';
 
 const LIBRARY_STORAGE_KEY = 'mangalens_library';
 const MAX_THUMBNAIL_SIZE = 150;
-
-/**
- * Thrown when an image URL can't be loaded into a `<canvas>` for
- * conversion to base64. Most commonly caused by CORS (the user pasted
- * a remote URL whose origin doesn't allow cross-origin fetches), but
- * also fires on broken / 404 / decode failures. Pre-PR #7 these errors
- * were swallowed inside `processedImageToPage` with a `console.error`,
- * which left users with broken pages saved into their library and no
- * indication anything had gone wrong (B15).
- */
-export class ImageLoadError extends Error {
-  fileName: string;
-  url: string;
-
-  constructor(fileName: string, url: string, message?: string) {
-    super(
-      message ??
-        `Não foi possível carregar a imagem "${fileName}". Pode ser bloqueio de CORS ou URL inválida.`,
-    );
-    this.name = 'ImageLoadError';
-    this.fileName = fileName;
-    this.url = url;
-  }
-}
-
-/** Per-image failure record collected by `addPagesToChapter`. */
-export interface PageConversionFailure {
-  fileName: string;
-  error: Error;
-}
-
-/**
- * Returned by `addPagesToChapter` so callers can surface partial
- * failures to the UI (B15). The successful pages are committed to
- * `state`; failures contains the file names and underlying errors of
- * any images that didn't make it.
- */
-export interface AddPagesResult {
-  state: LibraryState;
-  failures: PageConversionFailure[];
-}
 
 // Gerar ID único
 const generateId = (): string => {
@@ -220,12 +179,12 @@ export const createChapter = (number: number, title?: string): Chapter => {
 };
 
 // Converter blob URL ou imagem para base64
-const urlToBase64 = (fileName: string, url: string): Promise<string> => {
+const urlToBase64 = async (url: string): Promise<string> => {
   // Se já é base64, retornar como está
   if (url.startsWith('data:image')) {
-    return Promise.resolve(url);
+    return url;
   }
-
+  
   // Se é blob URL ou URL normal, converter para base64
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -235,79 +194,57 @@ const urlToBase64 = (fileName: string, url: string): Promise<string> => {
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(
-          new ImageLoadError(
-            fileName,
-            url,
-            'Não foi possível criar contexto do canvas.',
-          ),
-        );
-        return;
-      }
-      try {
+      if (ctx) {
         ctx.drawImage(img, 0, 0);
-        // toDataURL throws SecurityError if the canvas is "tainted" by
-        // a cross-origin image whose server didn't send Access-Control-
-        // Allow-Origin. We surface that as ImageLoadError so the UI can
-        // show "this URL is blocked by CORS" instead of swallowing it.
         resolve(canvas.toDataURL('image/png'));
-      } catch (err) {
-        reject(
-          new ImageLoadError(
-            fileName,
-            url,
-            err instanceof Error
-              ? `Falha de CORS ao converter "${fileName}" (${err.message}).`
-              : `Falha ao converter "${fileName}".`,
-          ),
-        );
+      } else {
+        reject(new Error('Não foi possível criar contexto do canvas'));
       }
     };
-    img.onerror = () =>
-      reject(new ImageLoadError(fileName, url));
+    img.onerror = () => reject(new Error('Erro ao carregar imagem'));
     img.src = url;
   });
 };
 
 // Converter ProcessedImage para MangaPage (salva imagem no IndexedDB)
-//
-// Throws `ImageLoadError` if the source image can't be loaded. Pre-PR #7
-// this function caught the error internally and returned a page with
-// empty data, leaving the user with a broken chapter and only a
-// console warning. The caller (`addPagesToChapter`) now wraps each
-// invocation in try/catch so a single bad image doesn't abort the
-// entire save.
 export const processedImageToPage = async (image: ProcessedImage): Promise<MangaPage> => {
   const pageId = generateId();
-
+  
+  console.log('=== SALVANDO PÁGINA ===');
+  console.log('Page ID:', pageId);
+  console.log('Image URL original:', image.imageUrl?.substring(0, 100));
+  
+  // Converter URLs para base64 antes de salvar
   let imageBase64 = '';
   let maskBase64 = '';
   let translatedBase64 = '';
-
-  if (image.imageUrl) {
-    imageBase64 = await urlToBase64(image.fileName, image.imageUrl);
+  
+  try {
+    if (image.imageUrl) {
+      imageBase64 = await urlToBase64(image.imageUrl);
+      console.log('Image convertida para base64, length:', imageBase64.length);
+    }
+    if (image.maskDataUrl) {
+      maskBase64 = image.maskDataUrl; // Já deve ser base64
+    }
+    if (image.translatedImageUrl) {
+      translatedBase64 = await urlToBase64(image.translatedImageUrl);
+    }
+  } catch (e) {
+    console.error('Erro ao converter imagem para base64:', e);
   }
-  if (image.maskDataUrl) {
-    maskBase64 = image.maskDataUrl; // Já deve ser base64
-  }
-  if (image.translatedImageUrl) {
-    translatedBase64 = await urlToBase64(image.fileName, image.translatedImageUrl);
-  }
-
-  if (imageBase64.length === 0) {
-    throw new ImageLoadError(
-      image.fileName,
-      image.imageUrl ?? '',
-      `Imagem "${image.fileName}" está vazia ou inacessível.`,
-    );
-  }
-
-  const thumbnail = await createThumbnail(imageBase64);
-
+  
+  const thumbnail = await createThumbnail(imageBase64 || image.imageUrl);
+  console.log('Thumbnail criado, length:', thumbnail?.length || 0);
+  
   // Salvar imagem grande no IndexedDB
-  await saveImage(pageId, imageBase64, maskBase64, translatedBase64);
-
+  if (imageBase64.length > 0) {
+    await saveImage(pageId, imageBase64, maskBase64, translatedBase64);
+    console.log('Imagem salva no IndexedDB com sucesso!');
+  } else {
+    console.warn('AVISO: imageUrl está vazia após conversão! Não foi possível salvar a imagem.');
+  }
+  
   return {
     id: pageId,
     fileName: image.fileName,
@@ -329,12 +266,22 @@ export const pageToProcessedImage = async (page: MangaPage): Promise<ProcessedIm
     console.error('Erro ao parsear bubbles:', e);
   }
 
+  console.log('=== CARREGANDO PÁGINA ===');
+  console.log('Page ID:', page.id);
+  console.log('Thumbnail length:', page.thumbnailUrl?.length || 0);
+  
   // Carregar imagem do IndexedDB
   const imageData = await loadImage(page.id);
-
+  
+  console.log('ImageData do IndexedDB:', imageData ? 'ENCONTRADO' : 'NÃO ENCONTRADO');
+  if (imageData) {
+    console.log('imageUrl length:', imageData.imageUrl?.length || 0);
+  }
+  
   // Fallback: tentar usar dados antigos se IndexedDB não tiver
   const finalImageUrl = imageData?.imageUrl || page.imageUrl || page.thumbnailUrl || '';
-
+  console.log('Final imageUrl length:', finalImageUrl?.length || 0);
+  
   return {
     id: page.id,
     fileName: page.fileName,
@@ -431,60 +378,31 @@ export const deleteChapter = (state: LibraryState, mangaId: string, chapterId: s
 };
 
 // Adicionar páginas a um capítulo
-//
-// Tolerates per-image failures: each image is converted in its own
-// try/catch so a single broken URL (CORS-blocked, 404, etc.) doesn't
-// abort the whole save. Successful pages are appended to the chapter;
-// failures are returned alongside the new state so the UI can surface
-// them (B15). Pre-PR #7 the function silently produced empty pages on
-// error and the user only learned about it via console warnings.
 export const addPagesToChapter = async (
-  state: LibraryState,
-  mangaId: string,
-  chapterId: string,
+  state: LibraryState, 
+  mangaId: string, 
+  chapterId: string, 
   images: ProcessedImage[]
-): Promise<AddPagesResult> => {
-  const results = await Promise.all(
-    images.map(async img => {
-      try {
-        const page = await processedImageToPage(img);
-        return { ok: true as const, page };
-      } catch (e) {
-        return {
-          ok: false as const,
-          fileName: img.fileName,
-          error: e instanceof Error ? e : new Error(String(e)),
-        };
-      }
-    }),
-  );
-
-  const pages: MangaPage[] = [];
-  const failures: PageConversionFailure[] = [];
-  for (const r of results) {
-    if (r.ok) pages.push(r.page);
-    else failures.push({ fileName: r.fileName, error: r.error });
-  }
-
-  const next: LibraryState = {
+): Promise<LibraryState> => {
+  const pages = await Promise.all(images.map(processedImageToPage));
+  
+  return {
     ...state,
-    mangas: state.mangas.map(m =>
-      m.id === mangaId
-        ? {
-            ...m,
-            chapters: m.chapters.map(c =>
-              c.id === chapterId
-                ? { ...c, pages: [...c.pages, ...pages], updatedAt: Date.now() }
+    mangas: state.mangas.map(m => 
+      m.id === mangaId 
+        ? { 
+            ...m, 
+            chapters: m.chapters.map(c => 
+              c.id === chapterId 
+                ? { ...c, pages: [...c.pages, ...pages], updatedAt: Date.now() } 
                 : c
             ),
             coverUrl: m.coverUrl || pages[0]?.thumbnailUrl,
-            updatedAt: Date.now()
-          }
+            updatedAt: Date.now() 
+          } 
         : m
     )
   };
-
-  return { state: next, failures };
 };
 
 // Obter mangá por ID
