@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ProcessedImage, TextBubble } from '../types';
+import { revokeIfBlob, revokeImageUrls } from '../services/blobUrls';
 
 /**
  * Per-tab session state: which images are loaded, which one is being
@@ -12,6 +13,13 @@ import { ProcessedImage, TextBubble } from '../types';
  * `updateImageState`, `handleBubbleUpdate`, etc. Centralising it here
  * lets the viewer and any future hook subscribe directly without prop
  * drilling.
+ *
+ * Blob-URL lifecycle (B17, fixed in PR #6):
+ * Every mutation that drops a `ProcessedImage` reference (or overwrites
+ * one of its URL fields) revokes the associated `blob:` URLs via the
+ * `services/blobUrls` helper. Data URLs and HTTP(S) URLs are left
+ * alone, so library pages (which come back as base64 from IndexedDB)
+ * are unaffected.
  */
 export interface SessionState {
   /** The image currently displayed in the viewer. */
@@ -56,7 +64,19 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   history: [],
 
   setCurrentImage: img => set({ currentImage: img }),
-  setHistory: history => set({ history }),
+
+  // Replacing history wholesale: revoke any blob URLs we owned in the
+  // outgoing list that aren't carried over to the new one (matched by
+  // identity, since the same ProcessedImage object can be present in
+  // both lists during a no-op set).
+  setHistory: history =>
+    set(state => {
+      const surviving = new Set(history);
+      state.history.forEach(img => {
+        if (!surviving.has(img)) revokeImageUrls(img);
+      });
+      return { history };
+    }),
 
   addImages: newImages =>
     set(state => ({
@@ -68,6 +88,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   removeImage: id =>
     set(state => {
+      const removed = state.history.find(h => h.id === id);
+      if (removed) revokeImageUrls(removed);
       const newHistory = state.history.filter(h => h.id !== id);
       const wasCurrent = state.currentImage?.id === id;
       return {
@@ -76,24 +98,63 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       };
     }),
 
-  clearHistory: () => set({ history: [], currentImage: null }),
+  clearHistory: () =>
+    set(state => {
+      state.history.forEach(revokeImageUrls);
+      return { history: [], currentImage: null };
+    }),
 
   replaceHistory: images =>
-    set({
-      history: images,
-      currentImage: images[0] ?? null,
+    set(state => {
+      const surviving = new Set(images);
+      state.history.forEach(img => {
+        if (!surviving.has(img)) revokeImageUrls(img);
+      });
+      return {
+        history: images,
+        currentImage: images[0] ?? null,
+      };
     }),
 
   updateImageState: (id, partial) =>
-    set(state => ({
-      history: state.history.map(img =>
-        img.id === id ? { ...img, ...partial } : img,
-      ),
-      currentImage:
+    set(state => {
+      const existing =
         state.currentImage?.id === id
-          ? { ...state.currentImage, ...partial }
-          : state.currentImage,
-    })),
+          ? state.currentImage
+          : state.history.find(h => h.id === id);
+
+      if (existing) {
+        // Revoke any previously-held blob URL whose slot is being
+        // overwritten with a different URL (or cleared). Skips when
+        // `partial` does not touch the field, or when the value is
+        // unchanged (re-setting the same URL keeps it valid).
+        if ('imageUrl' in partial && partial.imageUrl !== existing.imageUrl) {
+          revokeIfBlob(existing.imageUrl);
+        }
+        if (
+          'translatedImageUrl' in partial &&
+          partial.translatedImageUrl !== existing.translatedImageUrl
+        ) {
+          revokeIfBlob(existing.translatedImageUrl);
+        }
+        if (
+          'maskDataUrl' in partial &&
+          partial.maskDataUrl !== existing.maskDataUrl
+        ) {
+          revokeIfBlob(existing.maskDataUrl);
+        }
+      }
+
+      return {
+        history: state.history.map(img =>
+          img.id === id ? { ...img, ...partial } : img,
+        ),
+        currentImage:
+          state.currentImage?.id === id
+            ? { ...state.currentImage, ...partial }
+            : state.currentImage,
+      };
+    }),
 
   updateBubble: bubble => {
     const cur = get().currentImage;

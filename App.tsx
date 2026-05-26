@@ -3,6 +3,7 @@ import { ProcessedImage, TextBubble, ViewMode } from './types';
 import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontOption, FontGroup } from './components/MangaViewer';
 import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
+import { createTrackedObjectURL } from './services/blobUrls';
 import {
   ApiError,
   ByokKeys,
@@ -16,6 +17,7 @@ import {
   useTranslatorStore,
   useFontsStore,
   useSessionStore,
+  useLibraryStore,
   StoredFont,
   EngineId,
 } from './store';
@@ -162,6 +164,16 @@ const App: React.FC = () => {
   useEffect(() => {
     void registerLoadedFonts();
   }, [registerLoadedFonts]);
+
+  // B12 fix (PR #6): the legacy localStorage→IndexedDB migration is
+  // now an explicit, awaitable, idempotent operation triggered once at
+  // mount. Pre-PR #6 it was kicked off (without await!) inside
+  // `loadLibrary`, which raced with `pageToProcessedImage` and could
+  // corrupt the metadata.
+  const runLegacyImagesMigration = useLibraryStore(s => s.runLegacyImagesMigration);
+  useEffect(() => {
+    void runLegacyImagesMigration();
+  }, [runLegacyImagesMigration]);
 
   // --- Session-only state (not persisted) ---
   const [ichigoPassword, setIchigoPassword] = useState('');
@@ -361,13 +373,16 @@ const App: React.FC = () => {
   /**
    * Helper: convert a base64-encoded image returned by the BFF (Torii full
    * page or cleaner output) into a blob: URL the viewer can render directly.
+   * Blob URLs minted here are revoked by `useSessionStore` whenever the
+   * owning image is removed, replaced, or has its URL fields overwritten
+   * (see `services/blobUrls.ts`).
    */
   const base64ToObjectUrl = (b64: string, mime = 'image/png'): string => {
     const byteString = atob(b64);
     const bytes = new Uint8Array(byteString.length);
     for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
     const blob = new Blob([bytes], { type: mime });
-    return URL.createObjectURL(blob);
+    return createTrackedObjectURL(blob);
   };
 
   /**
@@ -533,7 +548,7 @@ const App: React.FC = () => {
     const newImages: ProcessedImage[] = files.map((file, index) => ({
       id: `${Date.now()}-${index}`, 
       fileName: file.name,
-      imageUrl: URL.createObjectURL(file),
+      imageUrl: createTrackedObjectURL(file),
       base64: '',
       bubbles: [],
       status: 'processing'
