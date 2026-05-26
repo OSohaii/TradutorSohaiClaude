@@ -15,6 +15,7 @@ import {
   useAuthStore,
   useTranslatorStore,
   useFontsStore,
+  useSessionStore,
   StoredFont,
   EngineId,
 } from './store';
@@ -66,9 +67,21 @@ const TORII_TRANSLATORS = [
 // duplicate and has been removed.
 
 const App: React.FC = () => {
-  // State for the current active image being viewed/processed
-  const [currentImage, setCurrentImage] = useState<ProcessedImage | null>(null);
-  const [history, setHistory] = useState<ProcessedImage[]>([]);
+  // ---- Session state (which images are loaded, which one is current) ----
+  // Pre-Phase-2b these were two `useState`s and the mutations lived
+  // inline as `setHistory(prev => ...)` / `setCurrentImage(...)` calls
+  // scattered through every handler. Centralising in the store removes
+  // the prop drilling and lets the viewer subscribe directly.
+  const currentImage = useSessionStore(s => s.currentImage);
+  const history = useSessionStore(s => s.history);
+  const setCurrentImageInStore = useSessionStore(s => s.setCurrentImage);
+  const addImagesToSession = useSessionStore(s => s.addImages);
+  const removeImageFromSession = useSessionStore(s => s.removeImage);
+  const replaceSessionHistory = useSessionStore(s => s.replaceHistory);
+  const updateImageStateInStore = useSessionStore(s => s.updateImageState);
+  const updateBubbleInStore = useSessionStore(s => s.updateBubble);
+  const removeBubbleInStore = useSessionStore(s => s.removeBubble);
+  const addBubbleInStore = useSessionStore(s => s.addBubble);
 
   // UI States
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Drawer
@@ -417,17 +430,17 @@ const App: React.FC = () => {
       const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
 
       const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
-      
-      const completedImage: ProcessedImage = { ...imageObj, base64: base64Clean, bubbles, translatedImageUrl, status: 'done' };
 
-      setHistory(prev => prev.map(img => img.id === imageObj.id ? completedImage : img));
-      setCurrentImage(prev => prev && prev.id === imageObj.id ? completedImage : prev);
+      updateImageStateInStore(imageObj.id, {
+        base64: base64Clean,
+        bubbles,
+        translatedImageUrl,
+        status: 'done',
+      });
     } catch (error: any) {
       console.error(`Error processing ${imageObj.fileName}:`, error);
       const { errorMsg } = handlePipelineError(error);
-      const errorImage: ProcessedImage = { ...imageObj, status: 'error', errorMessage: errorMsg };
-      setHistory(prev => prev.map(img => img.id === imageObj.id ? errorImage : img));
-      setCurrentImage(prev => prev && prev.id === imageObj.id ? errorImage : prev);
+      updateImageStateInStore(imageObj.id, { status: 'error', errorMessage: errorMsg });
     }
   };
 
@@ -475,9 +488,15 @@ const App: React.FC = () => {
 
   const handleRetranslate = async () => {
     if (!currentImage) return;
-    const processingImage = { ...currentImage, status: 'processing' as const, bubbles: [], translatedImageUrl: undefined, maskDataUrl: undefined };
-    setHistory(prev => prev.map(img => img.id === currentImage.id ? processingImage : img));
-    setCurrentImage(processingImage);
+    const imageId = currentImage.id;
+    // Reset the image to a "processing" state in the store; subsequent
+    // mutations target the same id.
+    updateImageStateInStore(imageId, {
+      status: 'processing',
+      bubbles: [],
+      translatedImageUrl: undefined,
+      maskDataUrl: undefined,
+    });
 
     try {
       // Reuse the base64 already stored on the image when available; fall
@@ -489,18 +508,18 @@ const App: React.FC = () => {
         const file = new File([blob], currentImage.fileName, { type: blob.type });
         const dataUrl = await fileToBase64(file);
         base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-        processingImage.base64 = base64Clean;
+        updateImageStateInStore(imageId, { base64: base64Clean });
       }
 
       const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
-      const doneImage = { ...processingImage, status: 'done' as const, bubbles, translatedImageUrl };
-      setHistory(prev => prev.map(img => img.id === currentImage.id ? doneImage : img));
-      setCurrentImage(doneImage);
+      updateImageStateInStore(imageId, {
+        status: 'done',
+        bubbles,
+        translatedImageUrl,
+      });
     } catch (error: any) {
       const { errorMsg } = handlePipelineError(error);
-      const errorImage = { ...processingImage, status: 'error' as const, errorMessage: errorMsg };
-      setHistory(prev => prev.map(img => img.id === currentImage.id ? errorImage : img));
-      setCurrentImage(errorImage);
+      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
     }
   };
 
@@ -520,8 +539,7 @@ const App: React.FC = () => {
       status: 'processing'
     }));
 
-    setHistory(prev => [...newImages, ...prev]);
-    setCurrentImage(newImages[0]);
+    addImagesToSession(newImages);
     setIsSidebarOpen(false); // Auto close sidebar on mobile
 
     // EXECUÇÃO SEQUENCIAL (FILA)
@@ -533,48 +551,42 @@ const App: React.FC = () => {
 
   // Handler para carregar capítulo da biblioteca
   const handleLoadFromLibrary = (images: ProcessedImage[]) => {
-    setHistory(images);
-    setCurrentImage(images[0] || null);
+    replaceSessionHistory(images);
     setIsSidebarOpen(false);
   };
 
-  // State Updates
+  // State Updates — kept as a thin wrapper so the JSX below doesn't
+  // need to know about the store directly. The store handles applying
+  // the partial to both `history[i]` and `currentImage` atomically.
   const updateImageState = (id: string, partial: Partial<ProcessedImage>) => {
-    setHistory(prev => prev.map(img => img.id === id ? { ...img, ...partial } : img));
-    if (currentImage?.id === id) setCurrentImage(prev => prev ? { ...prev, ...partial } : null);
+    updateImageStateInStore(id, partial);
   };
 
   const handleBubbleUpdate = (bubble: TextBubble) => {
-    if (!currentImage) return;
-    const newBubbles = currentImage.bubbles.map(b => b.id === bubble.id ? bubble : b);
-    updateImageState(currentImage.id, { bubbles: newBubbles });
+    updateBubbleInStore(bubble);
   };
-  
+
   const handleBubbleDelete = (bubbleId: string) => {
-    if (!currentImage) return;
-    const newBubbles = currentImage.bubbles.filter(b => b.id !== bubbleId);
-    updateImageState(currentImage.id, { bubbles: newBubbles });
+    removeBubbleInStore(bubbleId);
   };
 
   const handleBubbleAdd = (bubble: TextBubble) => {
-    if (!currentImage) return;
-    const newBubbles = [...currentImage.bubbles, bubble];
-    updateImageState(currentImage.id, { bubbles: newBubbles });
+    addBubbleInStore(bubble);
   };
 
   const handleImageUpdate = (img: ProcessedImage) => {
-    updateImageState(img.id, img);
+    updateImageStateInStore(img.id, img);
   };
 
   // Navigation
   const getCurrentIndex = () => history.findIndex(img => img.id === currentImage?.id);
   const handleNext = () => {
     const idx = getCurrentIndex();
-    if (idx !== -1 && idx < history.length - 1) setCurrentImage(history[idx + 1]);
+    if (idx !== -1 && idx < history.length - 1) setCurrentImageInStore(history[idx + 1]);
   };
   const handlePrev = () => {
     const idx = getCurrentIndex();
-    if (idx > 0) setCurrentImage(history[idx - 1]);
+    if (idx > 0) setCurrentImageInStore(history[idx - 1]);
   };
 
   // Toggle Component for reuse
@@ -648,7 +660,7 @@ const App: React.FC = () => {
              history.map((item, idx) => (
                <div 
                  key={item.id}
-                 onClick={() => { setCurrentImage(item); setIsSidebarOpen(false); }}
+                 onClick={() => { setCurrentImageInStore(item); setIsSidebarOpen(false); }}
                  className={`
                    group flex items-center p-2 rounded-xl cursor-pointer transition-all border
                    ${currentImage?.id === item.id 
@@ -679,7 +691,7 @@ const App: React.FC = () => {
                    </p>
                  </div>
                  <button 
-                   onClick={(e) => { e.stopPropagation(); const nh = history.filter(h => h.id !== item.id); setHistory(nh); if(currentImage?.id === item.id) setCurrentImage(nh[0] || null); }}
+                   onClick={(e) => { e.stopPropagation(); removeImageFromSession(item.id); }}
                    className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-lg transition-all"
                  >
                    <TrashIcon className="w-4 h-4" />

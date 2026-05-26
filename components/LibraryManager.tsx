@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  BookOpenIcon, 
-  PlusIcon, 
-  TrashIcon, 
+import React, { useState, useMemo } from 'react';
+import {
+  BookOpenIcon,
+  PlusIcon,
+  TrashIcon,
   FolderIcon,
   DocumentIcon,
   ChevronRightIcon,
@@ -13,26 +13,18 @@ import {
   MagnifyingGlassIcon,
   BookmarkIcon,
   ClockIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import { BookOpenIcon as BookOpenSolid } from '@heroicons/react/24/solid';
-import { Manga, Chapter, LibraryState } from '../types/library';
+import { Chapter } from '../types/library';
 import { ProcessedImage } from '../types';
 import {
-  loadLibrary,
-  saveLibrary,
   createManga,
   createChapter,
-  addManga,
-  updateManga,
-  deleteManga,
-  addChapter,
-  updateChapter,
-  deleteChapter,
-  addPagesToChapter,
   pageToProcessedImage,
-  getLibraryStats
+  getLibraryStats,
 } from '../services/libraryService';
+import { useLibraryStore } from '../store';
 
 interface LibraryManagerProps {
   isOpen: boolean;
@@ -47,13 +39,35 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   isOpen,
   onClose,
   currentHistory,
-  onLoadChapter
+  onLoadChapter,
 }) => {
-  const [library, setLibrary] = useState<LibraryState>(loadLibrary);
+  // ---- Library data: lives in zustand, hydrated from libraryService ----
+  // Pre-Phase-2b this was a `useState(loadLibrary)` + `useEffect(() => saveLibrary)`,
+  // which gave each component its own copy and meant App.tsx never saw
+  // changes the user made here. Now the store is the single source of
+  // truth, and any subscriber re-renders together.
+  const library = useLibraryStore();
+  const stats = useMemo(() => getLibraryStats(library), [library]);
+
+  // ---- UI state ----
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedManga, setSelectedManga] = useState<Manga | null>(null);
-  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
-  
+  // Selection by ID (not object) so the rendered manga/chapter is
+  // always derived from the live library, never a stale snapshot. This
+  // also fixes a latent bug where deleting/editing inside a chapter
+  // left stale data in `selectedManga`/`selectedChapter` until the
+  // next manual refresh.
+  const [selectedMangaId, setSelectedMangaId] = useState<string | null>(null);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+
+  const selectedManga = useMemo(
+    () => library.mangas.find(m => m.id === selectedMangaId) ?? null,
+    [library.mangas, selectedMangaId],
+  );
+  const selectedChapter = useMemo(
+    () => selectedManga?.chapters.find(c => c.id === selectedChapterId) ?? null,
+    [selectedManga, selectedChapterId],
+  );
+
   // Form states
   const [showNewMangaForm, setShowNewMangaForm] = useState(false);
   const [showNewChapterForm, setShowNewChapterForm] = useState(false);
@@ -61,33 +75,23 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   const [newChapterNumber, setNewChapterNumber] = useState(1);
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Edit states
   const [editingMangaId, setEditingMangaId] = useState<string | null>(null);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
-  
+
   const [isSaving, setIsSaving] = useState(false);
 
-  // Salvar biblioteca quando mudar
-  useEffect(() => {
-    saveLibrary(library);
-  }, [library]);
-
-  // Estatísticas
-  const stats = getLibraryStats(library);
-
   // Filtrar mangás
-  const filteredMangas = library.mangas.filter(m => 
-    m.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredMangas = library.mangas.filter(m =>
+    m.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   // Criar novo mangá
   const handleCreateManga = () => {
     if (!newMangaTitle.trim()) return;
-    
-    const manga = createManga(newMangaTitle.trim());
-    setLibrary(prev => addManga(prev, manga));
+    library.addManga(createManga(newMangaTitle.trim()));
     setNewMangaTitle('');
     setShowNewMangaForm(false);
   };
@@ -95,16 +99,9 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   // Criar novo capítulo
   const handleCreateChapter = () => {
     if (!selectedManga) return;
-    
     const chapter = createChapter(newChapterNumber, newChapterTitle.trim() || undefined);
-    setLibrary(prev => addChapter(prev, selectedManga.id, chapter));
-    
-    // Atualizar referência do mangá selecionado
-    setSelectedManga(prev => prev ? {
-      ...prev,
-      chapters: [...prev.chapters, chapter].sort((a, b) => a.number - b.number)
-    } : null);
-    
+    library.addChapter(selectedManga.id, chapter);
+    // selectedManga is derived from the store, so no manual refresh needed.
     setNewChapterNumber(prev => prev + 1);
     setNewChapterTitle('');
     setShowNewChapterForm(false);
@@ -113,26 +110,16 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   // Salvar histórico atual em um capítulo
   const handleSaveToChapter = async (chapter: Chapter) => {
     if (!selectedManga || currentHistory.length === 0) return;
-    
+
     const doneImages = currentHistory.filter(img => img.status === 'done');
     if (doneImages.length === 0) {
       alert('Não há páginas traduzidas para salvar.');
       return;
     }
-    
+
     setIsSaving(true);
     try {
-      const newState = await addPagesToChapter(library, selectedManga.id, chapter.id, doneImages);
-      setLibrary(newState);
-      
-      // Atualizar referências locais
-      const updatedManga = newState.mangas.find(m => m.id === selectedManga.id);
-      if (updatedManga) {
-        setSelectedManga(updatedManga);
-        const updatedChapter = updatedManga.chapters.find(c => c.id === chapter.id);
-        if (updatedChapter) setSelectedChapter(updatedChapter);
-      }
-      
+      await library.addPagesToChapter(selectedManga.id, chapter.id, doneImages);
       alert(`${doneImages.length} página(s) salva(s) com sucesso!`);
     } catch (e) {
       console.error('Erro ao salvar:', e);
@@ -158,12 +145,13 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   };
 
   // Deletar mangá
-  const handleDeleteManga = (manga: Manga) => {
-    if (!window.confirm(`Deletar "${manga.title}" e todos os capítulos?`)) return;
-    
-    setLibrary(prev => deleteManga(prev, manga.id));
-    if (selectedManga?.id === manga.id) {
-      setSelectedManga(null);
+  const handleDeleteManga = (mangaId: string, mangaTitle: string) => {
+    if (!window.confirm(`Deletar "${mangaTitle}" e todos os capítulos?`)) return;
+
+    library.deleteManga(mangaId);
+    if (selectedMangaId === mangaId) {
+      setSelectedMangaId(null);
+      setSelectedChapterId(null);
       setViewMode('list');
     }
   };
@@ -172,15 +160,10 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   const handleDeleteChapter = (chapter: Chapter) => {
     if (!selectedManga) return;
     if (!window.confirm(`Deletar Capítulo ${chapter.number}?`)) return;
-    
-    setLibrary(prev => deleteChapter(prev, selectedManga.id, chapter.id));
-    setSelectedManga(prev => prev ? {
-      ...prev,
-      chapters: prev.chapters.filter(c => c.id !== chapter.id)
-    } : null);
-    
-    if (selectedChapter?.id === chapter.id) {
-      setSelectedChapter(null);
+
+    library.deleteChapter(selectedManga.id, chapter.id);
+    if (selectedChapterId === chapter.id) {
+      setSelectedChapterId(null);
       setViewMode('manga');
     }
   };
@@ -188,40 +171,37 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   // Salvar edição de título
   const handleSaveEdit = () => {
     if (editingMangaId) {
-      setLibrary(prev => updateManga(prev, editingMangaId, { title: editTitle }));
-      setSelectedManga(prev => prev?.id === editingMangaId ? { ...prev, title: editTitle } : prev);
+      library.updateManga(editingMangaId, { title: editTitle });
       setEditingMangaId(null);
     } else if (editingChapterId && selectedManga) {
-      setLibrary(prev => updateChapter(prev, selectedManga.id, editingChapterId, { title: editTitle }));
-      setSelectedManga(prev => prev ? {
-        ...prev,
-        chapters: prev.chapters.map(c => c.id === editingChapterId ? { ...c, title: editTitle } : c)
-      } : null);
+      library.updateChapter(selectedManga.id, editingChapterId, { title: editTitle });
       setEditingChapterId(null);
     }
     setEditTitle('');
   };
 
   // Navegar para mangá
-  const openManga = (manga: Manga) => {
-    setSelectedManga(manga);
+  const openManga = (mangaId: string) => {
+    const manga = library.mangas.find(m => m.id === mangaId);
+    if (!manga) return;
+    setSelectedMangaId(mangaId);
     setViewMode('manga');
     setNewChapterNumber(manga.chapters.length + 1);
   };
 
   // Navegar para capítulo
-  const openChapter = (chapter: Chapter) => {
-    setSelectedChapter(chapter);
+  const openChapter = (chapterId: string) => {
+    setSelectedChapterId(chapterId);
     setViewMode('chapter');
   };
 
   // Voltar
   const goBack = () => {
     if (viewMode === 'chapter') {
-      setSelectedChapter(null);
+      setSelectedChapterId(null);
       setViewMode('manga');
     } else if (viewMode === 'manga') {
-      setSelectedManga(null);
+      setSelectedMangaId(null);
       setViewMode('list');
     }
   };
@@ -231,12 +211,11 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-slate-900 rounded-2xl border border-slate-700 w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-fade-in-up">
-        
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800">
           <div className="flex items-center gap-3">
             {viewMode !== 'list' && (
-              <button 
+              <button
                 onClick={goBack}
                 className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
               >
@@ -254,14 +233,15 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                   {viewMode === 'chapter' && `Capítulo ${selectedChapter?.number}`}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  {viewMode === 'list' && `${stats.totalMangas} mangás • ${stats.totalChapters} capítulos • ${stats.totalPages} páginas`}
+                  {viewMode === 'list' &&
+                    `${stats.totalMangas} mangás • ${stats.totalChapters} capítulos • ${stats.totalPages} páginas`}
                   {viewMode === 'manga' && `${selectedManga?.chapters.length || 0} capítulos`}
                   {viewMode === 'chapter' && `${selectedChapter?.pages.length || 0} páginas`}
                 </p>
               </div>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
           >
@@ -271,7 +251,6 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          
           {/* Lista de Mangás */}
           {viewMode === 'list' && (
             <>
@@ -283,7 +262,7 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                     type="text"
                     placeholder="Buscar mangá..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={e => setSearchQuery(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
@@ -304,8 +283,8 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                       type="text"
                       placeholder="Nome do mangá..."
                       value={newMangaTitle}
-                      onChange={(e) => setNewMangaTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCreateManga()}
+                      onChange={e => setNewMangaTitle(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCreateManga()}
                       autoFocus
                       className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
@@ -317,7 +296,10 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                       Criar
                     </button>
                     <button
-                      onClick={() => { setShowNewMangaForm(false); setNewMangaTitle(''); }}
+                      onClick={() => {
+                        setShowNewMangaForm(false);
+                        setNewMangaTitle('');
+                      }}
                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
                     >
                       Cancelar
@@ -340,13 +322,13 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                       <div
                         key={manga.id}
                         className="group relative bg-slate-800 rounded-xl overflow-hidden border border-slate-700 hover:border-indigo-500/50 transition-all cursor-pointer hover:shadow-xl hover:shadow-indigo-500/10"
-                        onClick={() => openManga(manga)}
+                        onClick={() => openManga(manga.id)}
                       >
                         {/* Cover */}
                         <div className="aspect-[2/3] bg-gradient-to-br from-slate-700 to-slate-800 relative overflow-hidden">
                           {manga.coverUrl ? (
-                            <img 
-                              src={manga.coverUrl} 
+                            <img
+                              src={manga.coverUrl}
                               alt={manga.title}
                               className="w-full h-full object-cover"
                             />
@@ -355,54 +337,59 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                               <BookmarkIcon className="w-12 h-12 text-slate-600" />
                             </div>
                           )}
-                          
+
                           {/* Hover Overlay */}
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <ChevronRightIcon className="w-10 h-10 text-white" />
                           </div>
-                          
+
                           {/* Chapter Count Badge */}
                           <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md">
                             {manga.chapters.length} cap.
                           </div>
                         </div>
-                        
+
                         {/* Info */}
                         <div className="p-3">
                           {editingMangaId === manga.id ? (
                             <input
                               type="text"
                               value={editTitle}
-                              onChange={(e) => setEditTitle(e.target.value)}
+                              onChange={e => setEditTitle(e.target.value)}
                               onBlur={handleSaveEdit}
-                              onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
-                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={e => e.key === 'Enter' && handleSaveEdit()}
+                              onClick={e => e.stopPropagation()}
                               autoFocus
                               className="w-full bg-slate-900 border border-indigo-500 rounded px-2 py-1 text-white text-sm focus:outline-none"
                             />
                           ) : (
-                            <h3 className="text-white font-medium text-sm truncate">{manga.title}</h3>
+                            <h3 className="text-white font-medium text-sm truncate">
+                              {manga.title}
+                            </h3>
                           )}
                           <p className="text-slate-500 text-xs mt-1 flex items-center gap-1">
                             <ClockIcon className="w-3 h-3" />
                             {new Date(manga.updatedAt).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
-                        
+
                         {/* Actions */}
                         <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setEditingMangaId(manga.id); 
-                              setEditTitle(manga.title); 
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingMangaId(manga.id);
+                              setEditTitle(manga.title);
                             }}
                             className="p-1.5 bg-slate-800/90 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white"
                           >
                             <PencilIcon className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteManga(manga); }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleDeleteManga(manga.id, manga.title);
+                            }}
                             className="p-1.5 bg-slate-800/90 hover:bg-red-600 rounded-lg text-slate-300 hover:text-white"
                           >
                             <TrashIcon className="w-4 h-4" />
@@ -428,11 +415,12 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                   <PlusIcon className="w-5 h-5" />
                   Novo Capítulo
                 </button>
-                
+
                 {currentHistory.filter(img => img.status === 'done').length > 0 && (
                   <div className="flex items-center gap-2 text-sm text-slate-400 bg-slate-800 px-3 py-2 rounded-lg">
                     <PhotoIcon className="w-4 h-4" />
-                    {currentHistory.filter(img => img.status === 'done').length} página(s) prontas para salvar
+                    {currentHistory.filter(img => img.status === 'done').length} página(s) prontas
+                    para salvar
                   </div>
                 )}
               </div>
@@ -446,7 +434,7 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                       <input
                         type="number"
                         value={newChapterNumber}
-                        onChange={(e) => setNewChapterNumber(parseInt(e.target.value) || 1)}
+                        onChange={e => setNewChapterNumber(parseInt(e.target.value) || 1)}
                         className="w-20 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                       />
                     </div>
@@ -454,8 +442,8 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                       type="text"
                       placeholder="Título (opcional)..."
                       value={newChapterTitle}
-                      onChange={(e) => setNewChapterTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCreateChapter()}
+                      onChange={e => setNewChapterTitle(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCreateChapter()}
                       className="flex-1 min-w-[200px] bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                     <button
@@ -465,7 +453,10 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                       Criar
                     </button>
                     <button
-                      onClick={() => { setShowNewChapterForm(false); setNewChapterTitle(''); }}
+                      onClick={() => {
+                        setShowNewChapterForm(false);
+                        setNewChapterTitle('');
+                      }}
                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
                     >
                       Cancelar
@@ -490,9 +481,9 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                         className="bg-slate-800 rounded-xl border border-slate-700 p-4 hover:border-indigo-500/50 transition-all"
                       >
                         <div className="flex items-center justify-between">
-                          <div 
+                          <div
                             className="flex-1 cursor-pointer"
-                            onClick={() => openChapter(chapter)}
+                            onClick={() => openChapter(chapter.id)}
                           >
                             <div className="flex items-center gap-3">
                               <div className="p-2 bg-slate-700 rounded-lg">
@@ -501,15 +492,18 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                               <div>
                                 <h4 className="text-white font-medium">
                                   Capítulo {chapter.number}
-                                  {chapter.title && <span className="text-slate-400 ml-2">- {chapter.title}</span>}
+                                  {chapter.title && (
+                                    <span className="text-slate-400 ml-2">- {chapter.title}</span>
+                                  )}
                                 </h4>
                                 <p className="text-slate-500 text-sm">
-                                  {chapter.pages.length} páginas • {new Date(chapter.updatedAt).toLocaleDateString('pt-BR')}
+                                  {chapter.pages.length} páginas •{' '}
+                                  {new Date(chapter.updatedAt).toLocaleDateString('pt-BR')}
                                 </p>
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-2">
                             {currentHistory.filter(img => img.status === 'done').length > 0 && (
                               <button
@@ -539,17 +533,17 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                             </button>
                           </div>
                         </div>
-                        
+
                         {/* Preview de páginas */}
                         {chapter.pages.length > 0 && (
                           <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
                             {chapter.pages.slice(0, 6).map((page, idx) => (
-                              <div 
+                              <div
                                 key={page.id}
                                 className="flex-shrink-0 w-12 h-16 bg-slate-900 rounded-lg overflow-hidden border border-slate-700"
                               >
-                                <img 
-                                  src={page.thumbnailUrl || page.imageUrl} 
+                                <img
+                                  src={page.thumbnailUrl || page.imageUrl}
                                   alt={`Página ${idx + 1}`}
                                   className="w-full h-full object-cover"
                                 />
@@ -603,8 +597,8 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
                         key={page.id}
                         className="aspect-[2/3] bg-slate-800 rounded-lg overflow-hidden border border-slate-700 hover:border-indigo-500 transition-colors relative group"
                       >
-                        <img 
-                          src={page.thumbnailUrl || page.imageUrl} 
+                        <img
+                          src={page.thumbnailUrl || page.imageUrl}
                           alt={page.fileName}
                           className="w-full h-full object-cover"
                         />
@@ -618,7 +612,6 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
               </div>
             </>
           )}
-
         </div>
       </div>
     </div>
