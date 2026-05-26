@@ -31,7 +31,7 @@ export interface UseTranslatePipelineOptions {
 }
 
 export interface UseTranslatePipelineReturn {
-  handleFilesSelect: (files: File[]) => Promise<void>;
+  handleFilesSelect: (files: File[]) => Promise<boolean>;
   handleRetranslate: () => Promise<void>;
   totalCost: number;
   displayedTotalTokens: number;
@@ -198,11 +198,15 @@ export const useTranslatePipeline = (
     }
   };
 
-  const handleFilesSelect = async (files: File[]) => {
-    if (files.length === 0) return;
-    if ((ocrEngine === 'ICHIGO') && !ichigoToken) { onAuthError('ichigo'); return; }
-    if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) { onAuthError('torii'); return; }
-    if (transEngine === 'DEEPL' && !deepLKey) { onAuthError('deepl'); return; }
+  /**
+   * Returns `true` when processing was initiated, `false` when blocked by
+   * missing credentials (an auth modal was opened instead).
+   */
+  const handleFilesSelect = async (files: File[]): Promise<boolean> => {
+    if (files.length === 0) return false;
+    if ((ocrEngine === 'ICHIGO') && !ichigoToken) { onAuthError('ichigo'); return false; }
+    if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) { onAuthError('torii'); return false; }
+    if (transEngine === 'DEEPL' && !deepLKey) { onAuthError('deepl'); return false; }
 
     const newImages: ProcessedImage[] = files.map((file, index) => ({
       id: `${Date.now()}-${index}`,
@@ -218,6 +222,7 @@ export const useTranslatePipeline = (
     for (let i = 0; i < newImages.length; i++) {
       await processImage(newImages[i], files[i]);
     }
+    return true;
   };
 
   return { handleFilesSelect, handleRetranslate, totalCost, displayedTotalTokens };

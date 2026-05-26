@@ -127,8 +127,8 @@ const App: React.FC = () => {
   });
 
   const handleFilesSelect = async (files: File[]) => {
-    await pipelineFilesSelect(files);
-    setIsSidebarOpen(false);
+    const started = await pipelineFilesSelect(files);
+    if (started) setIsSidebarOpen(false);
   };
 
   // --- Long Press Logic for Clean Mode ---
