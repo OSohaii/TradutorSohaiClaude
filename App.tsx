@@ -4,11 +4,11 @@ import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontOption, FontGroup
 import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
 import { createTrackedObjectURL } from './services/blobUrls';
+import { useTokenTracker } from './features/translator/useTokenTracker';
 import {
   ApiError,
   ByokKeys,
   EngineId as ApiEngineId,
-  TokenUsage,
   ichigoLogin as ichigoLoginApi,
   runPipeline as runPipelineApi,
 } from './services/api/pipelineApi';
@@ -179,9 +179,11 @@ const App: React.FC = () => {
   const [ichigoPassword, setIchigoPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Token tracking is per-session (resets on reload) by design.
-  const [totalTokens, setTotalTokens] = useState({ input: 0, output: 0 });
-  const [totalCost, setTotalCost] = useState(0);
+  // Token tracking is per-session (resets on reload) by design. The
+  // hook owns both the cumulative counts and the model-aware cost
+  // estimate (B16's pricing tier logic moved with it). See
+  // `features/translator/useTokenTracker.ts`.
+  const { totalCost, displayedTotalTokens, handleTokenUsage } = useTokenTracker();
 
   // Settings Modals
   const [showIchigoSettings, setShowIchigoSettings] = useState(false);
@@ -197,35 +199,11 @@ const App: React.FC = () => {
   const [fontPreviewText, setFontPreviewText] = useState('The quick brown fox jumps over the lazy dog');
 
   // --- Token Calculation Logic ---
-  // The BFF returns combined token usage in the pipeline response. This
-  // accumulates the running total and estimates cost based on the model.
-  const handleTokenUsage = (data: TokenUsage) => {
-    setTotalTokens(prev => ({
-      input: prev.input + data.input,
-      output: prev.output + data.output
-    }));
-
-    // Cost calculation (Estimates based on current pricing tiers)
-    // Flash: ~0.10/1M In, ~0.40/1M Out
-    // Pro:   ~1.25/1M In, ~5.00/1M Out
-    let costIn = 0;
-    let costOut = 0;
-
-    const model = (data.model || '').toLowerCase();
-    if (model.includes('flash') || model.includes('lite')) {
-       costIn = (data.input / 1000000) * 0.10;
-       costOut = (data.output / 1000000) * 0.40;
-    } else {
-       // Pro pricing
-       costIn = (data.input / 1000000) * 1.25;
-       costOut = (data.output / 1000000) * 5.00;
-    }
-
-    setTotalCost(prev => prev + costIn + costOut);
-  };
+  // Cumulative tracking moved to `useTokenTracker`. Pricing tiers are
+  // applied inside the hook based on the engine reported by the BFF.
 
   // Derived state for display
-  const displayedTotalTokens = totalTokens.input + totalTokens.output;
+  // `displayedTotalTokens` comes from the hook.
 
   // --- Long Press Logic for Clean Mode ---
   const timerRef = useRef<number | null>(null);
