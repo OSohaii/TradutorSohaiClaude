@@ -1,5 +1,6 @@
 import { useAuthStore, useTranslatorStore, useSessionStore } from '../../store';
 import { useTokenTracker } from './useTokenTracker';
+import { performIchigoLogout } from './ichigoLogout';
 import {
   ApiError,
   ByokKeys,
@@ -46,13 +47,11 @@ export const useTranslatePipeline = (
   const transEngine = useTranslatorStore(s => s.transEngine);
   const ichigoModel = useTranslatorStore(s => s.ichigoModel);
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
-  const setOcrEngine = useTranslatorStore(s => s.setOcrEngine);
 
   const ichigoToken = useAuthStore(s => s.ichigoToken);
   const toriiApiKey = useAuthStore(s => s.toriiApiKey);
   const deepLKey = useAuthStore(s => s.deepLKey);
   const geminiApiKey = useAuthStore(s => s.geminiApiKey);
-  const logoutIchigoStore = useAuthStore(s => s.logoutIchigo);
 
   const currentImage = useSessionStore(s => s.currentImage);
   const addImagesToSession = useSessionStore(s => s.addImages);
@@ -76,11 +75,6 @@ export const useTranslatePipeline = (
     torii: toriiApiKey || undefined,
     ichigo: ichigoToken || undefined,
   });
-
-  const logoutIchigo = () => {
-    logoutIchigoStore();
-    if (ocrEngine === 'ICHIGO') setOcrEngine('GEMINI_FLASH');
-  };
 
   const runPipeline = async (
     base64: string,
@@ -123,7 +117,7 @@ export const useTranslatePipeline = (
       if (error.code === 'AUTH' || error.code === 'INVALID_KEY') {
         switch (error.engine) {
           case 'ichigo':
-            if (error.code === 'AUTH') logoutIchigo();
+            if (error.code === 'AUTH') performIchigoLogout();
             onAuthError('ichigo');
             break;
           case 'gemini':

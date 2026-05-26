@@ -9,23 +9,12 @@ import {
 } from '@heroicons/react/24/outline';
 import { useFontsStore, StoredFont } from '../../store';
 import { AVAILABLE_FONTS, FontOption, FontGroup } from '../../components/MangaViewer';
+import { fileToBase64 } from '../translator/useTranslatePipeline';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const encoded = reader.result as string;
-      resolve(encoded);
-    };
-    reader.onerror = error => reject(error);
-  });
-};
 
 const FontManagerModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const customFonts = useFontsStore(s => s.customFonts);

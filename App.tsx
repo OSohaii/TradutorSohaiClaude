@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ProcessedImage, TextBubble } from './types';
 import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontGroup } from './components/MangaViewer';
 import Uploader from './components/Uploader';
@@ -113,15 +113,17 @@ const App: React.FC = () => {
   const [showLibrary, setShowLibrary] = useState(false);
 
   // --- Translation pipeline hook ---
+  const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini') => {
+    switch (modal) {
+      case 'ichigo': setShowIchigoSettings(true); break;
+      case 'torii': setShowToriiSettings(true); break;
+      case 'deepl': setShowDeepLSettings(true); break;
+      case 'gemini': setShowGeminiSettings(true); break;
+    }
+  }, []);
+
   const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, totalCost, displayedTotalTokens } = useTranslatePipeline({
-    onAuthError: (modal) => {
-      switch (modal) {
-        case 'ichigo': setShowIchigoSettings(true); break;
-        case 'torii': setShowToriiSettings(true); break;
-        case 'deepl': setShowDeepLSettings(true); break;
-        case 'gemini': setShowGeminiSettings(true); break;
-      }
-    },
+    onAuthError,
   });
 
   const handleFilesSelect = async (files: File[]) => {
