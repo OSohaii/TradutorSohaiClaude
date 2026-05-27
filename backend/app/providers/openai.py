@@ -96,7 +96,7 @@ Source language: {source_language}
 Your output must be strict JSON following the schema provided."""
 
 
-def _ocr_prompt(skip_translation: bool, source_language: str) -> str:
+def _ocr_prompt(skip_translation: bool, source_language: str, target_language: str = "Portuguese (Brazil)") -> str:
     if skip_translation:
         return (
             f"Analyze this manga page. The source language is {source_language}.\n"
@@ -112,7 +112,7 @@ def _ocr_prompt(skip_translation: bool, source_language: str) -> str:
         f"Analyze this manga page for translation. The source language is {source_language}.\n"
         "1. Visual Detection: Identify all text regions (bubbles, narration, SFX).\n"
         "2. Extraction & Translation: Extract the text exactly and translate it to "
-        "Portuguese (Brazil) following the System Instructions.\n"
+        f"{target_language} following the System Instructions.\n"
         "3. Fantasy Terminology: keep Skill names / Attack shouts / Fantasy "
         "Titles / Ranks in English.\n"
         "4. Bounding Boxes: Provide [ymin, xmin, ymax, xmax] coordinates "
@@ -151,6 +151,7 @@ async def process_manga_page(
     api_key: str,
     skip_translation: bool,
     source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
 ) -> tuple[list[TextBubble], TokenUsage]:
     """Run a single OCR (or OCR+translate) pass over an image using OpenAI vision."""
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
@@ -172,7 +173,7 @@ async def process_manga_page(
                 },
                 {
                     "type": "text",
-                    "text": _ocr_prompt(skip_translation, source_language),
+                    "text": _ocr_prompt(skip_translation, source_language, target_language),
                 },
             ],
         },
@@ -186,8 +187,8 @@ async def process_manga_page(
         "response_format": {"type": "json_object"},
     }
 
-    async def _call():
-        async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        async def _call():
             resp = await client.post(
                 _API_URL,
                 json=payload,
@@ -203,10 +204,10 @@ async def process_manga_page(
                 raise exc
             return resp.json()
 
-    try:
-        data = await _retry_with_backoff(_call)
-    except Exception as exc:
-        raise _classify_error(exc) from exc
+        try:
+            data = await _retry_with_backoff(_call)
+        except Exception as exc:
+            raise _classify_error(exc) from exc
 
     # Extract response text
     text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -277,8 +278,8 @@ Respond with JSON: {{"translations": ["translated line 1", "translated line 2", 
         "response_format": {"type": "json_object"},
     }
 
-    async def _call():
-        async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        async def _call():
             resp = await client.post(
                 _API_URL,
                 json=payload,
@@ -294,10 +295,10 @@ Respond with JSON: {{"translations": ["translated line 1", "translated line 2", 
                 raise exc
             return resp.json()
 
-    try:
-        data = await _retry_with_backoff(_call)
-    except Exception as exc:
-        raise _classify_error(exc) from exc
+        try:
+            data = await _retry_with_backoff(_call)
+        except Exception as exc:
+            raise _classify_error(exc) from exc
 
     text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
     if not text:

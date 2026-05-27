@@ -200,6 +200,7 @@ async def _run_gemini_ocr(
     plan: Plan,
     keys: KeyResolver,
     source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
 ) -> tuple[list[TextBubble], TokenUsage]:
     api_key = keys.for_gemini()
     model = _GEMINI_MODELS[plan.ocr_engine]
@@ -209,6 +210,7 @@ async def _run_gemini_ocr(
         api_key=api_key,
         skip_translation=plan.ocr_skip_translation,
         source_language=source_language,
+        target_language=target_language,
     )
 
 
@@ -217,6 +219,7 @@ async def _run_openai_ocr(
     plan: Plan,
     keys: KeyResolver,
     source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
 ) -> tuple[list[TextBubble], TokenUsage]:
     api_key = keys.for_openai()
     model = _OPENAI_MODELS[plan.ocr_engine]
@@ -226,6 +229,7 @@ async def _run_openai_ocr(
         api_key=api_key,
         skip_translation=plan.ocr_skip_translation,
         source_language=source_language,
+        target_language=target_language,
     )
 
 
@@ -340,6 +344,7 @@ async def _run_main_ocr(
 ) -> tuple[list[TextBubble], TokenUsage | None, str | None]:
     """Returns (bubbles, ocr_tokens, translated_image_base64)."""
     source_language = req.options.source_language
+    target_language = req.options.target_language
     if plan.use_torii_full:
         bubbles, image_bytes_out = await _run_torii_full(image_bytes, req, keys)
         return bubbles, None, base64.b64encode(image_bytes_out).decode("ascii")
@@ -347,9 +352,9 @@ async def _run_main_ocr(
         bubbles = await _run_ichigo(image_bytes, req, keys)
         return bubbles, None, None
     if _is_openai(plan.ocr_engine):
-        bubbles, tokens = await _run_openai_ocr(image_bytes, plan, keys, source_language)
+        bubbles, tokens = await _run_openai_ocr(image_bytes, plan, keys, source_language, target_language)
         return bubbles, tokens, None
-    bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys, source_language)
+    bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys, source_language, target_language)
     return bubbles, tokens, None
 
 

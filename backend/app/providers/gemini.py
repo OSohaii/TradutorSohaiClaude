@@ -87,7 +87,7 @@ _SYSTEM_INSTRUCTION = """You are an expert Manga Translator and Localizer specia
 Your output must be strict JSON following the provided schema."""
 
 
-def _ocr_prompt(skip_translation: bool, source_language: str = "Japanese") -> str:
+def _ocr_prompt(skip_translation: bool, source_language: str = "Japanese", target_language: str = "Portuguese (Brazil)") -> str:
     if skip_translation:
         return (
             f"Analyze this manga page. The source language is {source_language}.\n"
@@ -102,7 +102,7 @@ def _ocr_prompt(skip_translation: bool, source_language: str = "Japanese") -> st
         f"Analyze this manga page for translation. The source language is {source_language}.\n"
         "1. Visual Detection: Identify all text regions (bubbles, narration, SFX).\n"
         "2. Extraction & Translation: Extract the text exactly and translate it to "
-        "Portuguese (Brazil) following the System Instructions.\n"
+        f"{target_language} following the System Instructions.\n"
         "3. Fantasy Terminology: keep Skill names / Attack shouts / Fantasy "
         "Titles / Ranks in English.\n"
         "4. Bounding Boxes: Provide [ymin, xmin, ymax, xmax] coordinates "
@@ -183,6 +183,7 @@ async def process_manga_page(
     api_key: str,
     skip_translation: bool,
     source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
 ) -> tuple[list[TextBubble], TokenUsage]:
     """Run a single OCR (or OCR+translate) pass over an image."""
     client = genai.Client(api_key=api_key)
@@ -194,7 +195,7 @@ async def process_manga_page(
             model=model,
             contents=[
                 gtypes.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-                _ocr_prompt(skip_translation, source_language),
+                _ocr_prompt(skip_translation, source_language, target_language),
             ],
             config=gtypes.GenerateContentConfig(
                 response_mime_type="application/json",
