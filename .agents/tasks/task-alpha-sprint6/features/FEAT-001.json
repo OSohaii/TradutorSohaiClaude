@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Sprint 6: Export (PDF/ZIP), Auto-Save Session (IndexedDB), Text Search in Bubbles, Multi-Select in Sidebar. Installs jspdf+jszip, creates new branch feature/alpha-sprint6, implements all 4 features, commits, pushes, and opens PR against main.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create branch feature/alpha-sprint6 from current HEAD (feature/alpha-sprint5). Run: git checkout -b feature/alpha-sprint6",
     "Install new dependencies: npm install jspdf jszip && npm install -D @types/jspdf (jszip has built-in types)",
@@ -39,5 +39,5 @@
     "npm run typecheck && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 4 features implemented successfully. handleRetranslate from useTranslatePipeline takes no args (operates on currentImage only), so batch retranslate resets items to idle first then calls handleTranslateImage. jspdf types are bundled (no @types/jspdf needed). DB_VERSION bumped to 3 with session store. renderToCanvas extracted as reusable function for export service."
 }
