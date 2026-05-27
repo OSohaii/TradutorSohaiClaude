@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Sprint 7 features: persistent glossary with backend integration, batch bubble editing, version history per page, and translation confidence indicator",
+  "status": "pending",
+  "steps": [
+    "Create store/useGlossaryStore.ts - zustand store persisted to localStorage. State: glossaryEntries (array of {source, target, notes}). Actions: addEntry, editEntry, deleteEntry, importCSV, exportCSV, clearAll.",
+    "Add 4th tab 'Glossario' to features/settings/SettingsPanel.tsx. Tab UI: table showing entries with source/target/notes columns, inline add/edit/delete buttons, CSV import button (file input), CSV export button (generates and downloads CSV).",
+    "Update TabId type in SettingsPanel.tsx to include 'glossario'.",
+    "Backend: Add optional 'glossary' field to PipelineOptions in backend/app/schemas/pipeline.py as list[dict] with source/target/notes fields.",
+    "Backend: In backend/app/providers/gemini.py, if glossary is provided in options, append glossary instructions to the system prompt (e.g. 'Use these term translations: source -> target').",
+    "Backend: In backend/app/providers/openai.py, if glossary is provided in options, append glossary instructions to the system prompt similarly.",
+    "Frontend: Pass glossary entries from useGlossaryStore into the pipeline request (in features/translator/useTranslatePipeline.ts when building the request body).",
+    "Create components/BatchBubbleToolbar.tsx - floating toolbar that appears when multiple bubbles are selected. Shows: font family, bold, italic, font size, delete all selected. Applies changes to all selected bubbles.",
+    "In components/MangaViewer.tsx: add selectedBubbleIds state (Set<string>). Ctrl+Click on a bubble adds/removes from selection. When multiple selected, render BatchBubbleToolbar instead of ViewerToolbar.",
+    "Add translationVersions to useSessionStore: Record<string, TextBubble[][]> keyed by image id, max 5 versions per page. Add actions: saveVersion(imageId), restoreVersion(imageId, versionIndex), getVersions(imageId).",
+    "Add 'Versoes' dropdown button in MangaViewer toolbar area - shows list of saved versions with timestamps, clicking restores that version's bubbles.",
+    "Add optional 'confidence?: number' field to TextBubble interface in types.ts.",
+    "Backend: Add optional confidence field to TextBubble in backend/app/schemas/common.py.",
+    "Backend: In OCR prompts (gemini.py and openai.py), request confidence score (0-1) for each bubble in the JSON response schema.",
+    "Frontend: In components/BubbleOverlay.tsx, show an orange dot indicator when bubble.confidence exists and is < 0.7. Position it at top-right corner of the bubble.",
+    "Run npm run typecheck && npm run lint to verify zero errors",
+    "Commit with message: feat(sprint7): glossary, batch bubble edit, version history, confidence indicator"
+  ],
+  "acceptance_criteria": [
+    "npm run typecheck passes with zero errors",
+    "npm run lint passes with zero errors (warnings OK)",
+    "npm run build produces dist/ successfully",
+    "useGlossaryStore.ts exists with localStorage persistence",
+    "SettingsPanel has 4 tabs including Glossario",
+    "PipelineOptions schema has glossary field",
+    "Gemini and OpenAI providers append glossary to prompts",
+    "BatchBubbleToolbar renders for multi-bubble selection",
+    "Version history stored in useSessionStore with max 5 per page",
+    "TextBubble has confidence field",
+    "BubbleOverlay shows orange dot for low confidence"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
