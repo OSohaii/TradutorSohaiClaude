@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from urllib.parse import urlparse
 
 import httpx
 
@@ -19,6 +20,26 @@ logger = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
 _RETRY_BACKOFF = [1.0, 2.0, 4.0]
+
+_BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "100.100.100.200"}
+
+
+def _validate_url(url: str) -> None:
+    """Basic SSRF protection: reject URLs targeting metadata endpoints or non-HTTP schemes."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ProviderError(
+            ErrorCode.INVALID_INPUT,
+            engine="lama_cleaner",
+            message=f"URL scheme '{parsed.scheme}' not allowed. Use http or https.",
+        )
+    hostname = parsed.hostname or ""
+    if hostname in _BLOCKED_HOSTS:
+        raise ProviderError(
+            ErrorCode.INVALID_INPUT,
+            engine="lama_cleaner",
+            message=f"URL targeting '{hostname}' is not allowed.",
+        )
 
 
 async def inpaint(
@@ -43,6 +64,8 @@ async def inpaint(
         The inpainted (cleaned) image bytes.
     """
     url = f"{lama_url.rstrip('/')}/inpaint"
+
+    _validate_url(lama_url)
 
     for attempt in range(_MAX_RETRIES):
         try:

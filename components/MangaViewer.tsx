@@ -5,7 +5,7 @@ import BubbleOverlay from './BubbleOverlay';
 import ViewerToolbar from './ViewerToolbar';
 import ComparisonSlider from './ComparisonSlider';
 import ShortcutsOverlay from './ui/ShortcutsOverlay';
-import { useSessionStore } from '../store';
+import { useSessionStore, useToastStore } from '../store';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { useSwipeNavigation } from '../features/viewer/useSwipeNavigation';
 import { usePinchZoom } from '../features/viewer/usePinchZoom';
@@ -474,6 +474,10 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
       downloadBlob(blob, filename);
     } catch (err) {
       console.error('PSD export failed:', err);
+      useToastStore.getState().addToast(
+        'Falha ao exportar PSD. Verifique se a imagem esta carregada corretamente.',
+        'error',
+      );
     } finally {
       setIsExportingPsd(false);
     }

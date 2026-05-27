@@ -11,6 +11,7 @@ import json
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -21,6 +22,26 @@ logger = logging.getLogger(__name__)
 
 _RETRY_CODES = {429, 529}
 _RETRY_SUBSTRINGS = ("429", "rate_limit", "quota", "Too Many Requests")
+
+_BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "100.100.100.200"}
+
+
+def _validate_url(url: str) -> None:
+    """Basic SSRF protection: reject URLs targeting metadata endpoints or non-HTTP schemes."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ProviderError(
+            ErrorCode.INVALID_INPUT,
+            "custom_openai",
+            f"URL scheme '{parsed.scheme}' not allowed. Use http or https.",
+        )
+    hostname = parsed.hostname or ""
+    if hostname in _BLOCKED_HOSTS:
+        raise ProviderError(
+            ErrorCode.INVALID_INPUT,
+            "custom_openai",
+            f"URL targeting '{hostname}' is not allowed.",
+        )
 
 
 async def _retry_with_backoff(op, *, max_retries: int = 3, base_delay: float = 2.0):
@@ -112,6 +133,8 @@ Respond with JSON: {{"translations": ["translated line 1", "translated line 2", 
 
     # Build the chat completions URL from the base URL
     url = base_url.rstrip("/") + "/chat/completions"
+
+    _validate_url(base_url)
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
