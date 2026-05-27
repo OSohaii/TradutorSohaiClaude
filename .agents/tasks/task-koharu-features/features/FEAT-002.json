@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add OpenAI-Compatible custom endpoint support - allows users to configure any OpenAI-compatible server (Ollama, LM Studio, OpenRouter, etc.) with a custom base URL, API key, and model name.",
+  "status": "pending",
+  "steps": [
+    "Step 1 - Backend: Add CUSTOM_OPENAI to EngineId enum in backend/app/schemas/common.py.",
+    "Step 2 - Backend config: Add custom_openai_api_key, custom_openai_base_url, and custom_openai_model fields to Settings in backend/app/config.py (all default to empty string).",
+    "Step 3 - Backend deps: Add custom_openai field to Byok dataclass in backend/app/deps.py. Add x_byok_custom header param to get_byok(). Add for_custom_openai() method to KeyResolver. Update ENGINE_TO_BYOK.",
+    "Step 4 - Backend provider: Create backend/app/providers/custom_openai.py - a lightweight wrapper around the OpenAI chat completions pattern. It accepts base_url, api_key, and model as parameters (passed at call time, not hardcoded). Implement translate_bubbles() only (no vision/OCR since we cannot guarantee the user's model supports it). The implementation should be nearly identical to openai.py's translate_bubbles() but with configurable _API_URL.",
+    "Step 5 - Backend pipeline: Update backend/app/services/pipeline.py to handle CUSTOM_OPENAI as a translation-only engine (like DEEPSEEK). The custom base URL and model should be read from request headers or config. Add X-Custom-Base-Url and X-Custom-Model headers to pass these values from the frontend.",
+    "Step 6 - Backend deps update: Add custom_base_url and custom_model fields to Byok dataclass, extracted from X-Custom-Base-Url and X-Custom-Model headers.",
+    "Step 7 - Backend translate router: Add CUSTOM_OPENAI case to backend/app/routers/translate.py.",
+    "Step 8 - Frontend types: Add 'CUSTOM_OPENAI' to the EngineId union in types.ts.",
+    "Step 9 - Frontend auth store: Add customOpenaiApiKey, customOpenaiBaseUrl, and customOpenaiModel fields with setters to useAuthStore.ts. Persist all three.",
+    "Step 10 - Frontend API client: Add custom field to ByokKeys. Add X-Byok-Custom, X-Custom-Base-Url, X-Custom-Model to byokHeaders() (only when custom values are present).",
+    "Step 11 - Frontend settings modal: Create features/settings/CustomOpenAISettingsModal.tsx with fields for: Base URL (text input, placeholder 'http://localhost:11434/v1'), API Key (password input, optional), Model Name (text input, placeholder 'llama3'). Use a teal/cyan color theme.",
+    "Step 12 - Frontend pipeline integration: Update useTranslatePipeline.ts to read customOpenaiApiKey/customOpenaiBaseUrl/customOpenaiModel from store, include in buildByok(), and add credential check (require at least baseUrl and model).",
+    "Step 13 - Frontend cost estimation: Add CUSTOM_OPENAI with { input: 0, output: 0 } pricing (user's own infra).",
+    "Step 14 - Frontend App.tsx: Import CustomOpenAISettingsModal, add state/modal, add CUSTOM_OPENAI to translator <select>, add settings button, render modal. Add 'custom' case to onAuthError.",
+    "Step 15 - Update planPipeline.ts to handle CUSTOM_OPENAI as translate-only (not OCR-capable)."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes",
+    "npx vitest run passes",
+    "npx vite build succeeds",
+    "CUSTOM_OPENAI appears in EngineId (frontend + backend)",
+    "CustomOpenAISettingsModal.tsx exists with Base URL, API Key, Model Name fields",
+    "X-Byok-Custom, X-Custom-Base-Url, X-Custom-Model headers are sent when configured",
+    "backend/app/providers/custom_openai.py exists with translate_bubbles()"
+  ],
+  "verification": [
+    "npx vitest run",
+    "npx tsc --noEmit",
+    "npx vite build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

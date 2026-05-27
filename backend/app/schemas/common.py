@@ -45,6 +45,9 @@ class EngineId(str, Enum):
     GOOGLE = "GOOGLE"
     GPT4O = "GPT4O"
     GPT4O_MINI = "GPT4O_MINI"
+    CLAUDE = "CLAUDE"
+    CLAUDE_HAIKU = "CLAUDE_HAIKU"
+    DEEPSEEK = "DEEPSEEK"
 
 
 BubbleType = Literal["dialogue", "sfx"]

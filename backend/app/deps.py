@@ -25,6 +25,8 @@ class Byok:
     google: str | None = None
     ichigo: str | None = None
     openai: str | None = None
+    claude: str | None = None
+    deepseek: str | None = None
 
 
 async def get_byok(
@@ -34,6 +36,8 @@ async def get_byok(
     x_byok_google: Annotated[str | None, Header()] = None,
     x_byok_ichigo: Annotated[str | None, Header()] = None,
     x_byok_openai: Annotated[str | None, Header()] = None,
+    x_byok_claude: Annotated[str | None, Header()] = None,
+    x_byok_deepseek: Annotated[str | None, Header()] = None,
 ) -> Byok:
     return Byok(
         gemini=_clean(x_byok_gemini),
@@ -42,6 +46,8 @@ async def get_byok(
         google=_clean(x_byok_google),
         ichigo=_clean(x_byok_ichigo),
         openai=_clean(x_byok_openai),
+        claude=_clean(x_byok_claude),
+        deepseek=_clean(x_byok_deepseek),
     )
 
 
@@ -102,6 +108,20 @@ class KeyResolver:
             hint="X-Byok-Openai header or OPENAI_API_KEY env var",
         )
 
+    def for_claude(self) -> str:
+        return self._require(
+            self._byok.claude or self._settings.claude_api_key,
+            engine="claude",
+            hint="X-Byok-Claude header or CLAUDE_API_KEY env var",
+        )
+
+    def for_deepseek(self) -> str:
+        return self._require(
+            self._byok.deepseek or self._settings.deepseek_api_key,
+            engine="deepseek",
+            hint="X-Byok-Deepseek header or DEEPSEEK_API_KEY env var",
+        )
+
     @staticmethod
     def _require(value: str | None, *, engine: str, hint: str) -> str:
         if not value:
@@ -139,4 +159,7 @@ ENGINE_TO_BYOK: dict[EngineId, str] = {
     EngineId.GOOGLE: "google",
     EngineId.GPT4O: "openai",
     EngineId.GPT4O_MINI: "openai",
+    EngineId.CLAUDE: "claude",
+    EngineId.CLAUDE_HAIKU: "claude",
+    EngineId.DEEPSEEK: "deepseek",
 }

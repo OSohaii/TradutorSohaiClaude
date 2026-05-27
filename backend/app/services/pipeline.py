@@ -24,6 +24,8 @@ from ..providers import google_translate as gt_provider
 from ..providers import ichigo as ichigo_provider
 from ..providers import openai as openai_provider
 from ..providers import torii as torii_provider
+from ..providers import claude as claude_provider
+from ..providers import deepseek as deepseek_provider
 from ..schemas.common import EngineId, TextBubble, TokenUsage
 from ..schemas.pipeline import PipelineRequest, PipelineResponse
 
@@ -56,6 +58,25 @@ _OPENAI_MODELS: dict[EngineId, str] = {
 
 def _is_openai(engine: EngineId) -> bool:
     return engine in _OPENAI_MODELS
+
+
+_CLAUDE_MODELS: dict[EngineId, str] = {
+    EngineId.CLAUDE: "claude-sonnet-4-20250514",
+    EngineId.CLAUDE_HAIKU: "claude-haiku-4-20250414",
+}
+
+
+def _is_claude(engine: EngineId) -> bool:
+    return engine in _CLAUDE_MODELS
+
+
+_DEEPSEEK_MODELS: dict[EngineId, str] = {
+    EngineId.DEEPSEEK: "deepseek-chat",
+}
+
+
+def _is_deepseek(engine: EngineId) -> bool:
+    return engine in _DEEPSEEK_MODELS
 
 
 _FULL_PIPELINE_ENGINES = {
@@ -143,7 +164,21 @@ def plan_pipeline(req: PipelineRequest) -> Plan:
             translation_done_in_ocr=unified,
         )
 
-    # OCR engine that isn't Gemini/OpenAI/Ichigo/Torii doesn't make sense in the UI.
+    if _is_claude(ocr):
+        # Claude vision does OCR; if the same Claude engine is used for
+        # translation, we let the OCR pass also translate (unified).
+        is_native_match = ocr == translation
+        unified = is_native_match
+        return Plan(
+            use_torii_full=False,
+            use_torii_cleaner=req.cleaner.enabled,
+            ocr_engine=ocr,
+            translation_engine=translation,
+            ocr_skip_translation=not unified,
+            translation_done_in_ocr=unified,
+        )
+
+    # OCR engine that isn't Gemini/OpenAI/Claude/Ichigo/Torii doesn't make sense in the UI.
     raise ProviderError(
         ErrorCode.INVALID_INPUT,
         ocr.value,
@@ -233,6 +268,25 @@ async def _run_openai_ocr(
     )
 
 
+async def _run_claude_ocr(
+    image_bytes: bytes,
+    plan: Plan,
+    keys: KeyResolver,
+    source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
+) -> tuple[list[TextBubble], TokenUsage]:
+    api_key = keys.for_claude()
+    model = _CLAUDE_MODELS[plan.ocr_engine]
+    return await claude_provider.process_manga_page(
+        image_bytes,
+        model=model,
+        api_key=api_key,
+        skip_translation=plan.ocr_skip_translation,
+        source_language=source_language,
+        target_language=target_language,
+    )
+
+
 async def _run_translation_step(
     bubbles: list[TextBubble],
     plan: Plan,
@@ -260,6 +314,22 @@ async def _run_translation_step(
             bubbles,
             model=_OPENAI_MODELS[engine],
             api_key=keys.for_openai(),
+            target_language=target_language,
+        )
+        return translated, tokens
+    if _is_claude(engine):
+        translated, tokens = await claude_provider.translate_bubbles(
+            bubbles,
+            model=_CLAUDE_MODELS[engine],
+            api_key=keys.for_claude(),
+            target_language=target_language,
+        )
+        return translated, tokens
+    if _is_deepseek(engine):
+        translated, tokens = await deepseek_provider.translate_bubbles(
+            bubbles,
+            model=_DEEPSEEK_MODELS[engine],
+            api_key=keys.for_deepseek(),
             target_language=target_language,
         )
         return translated, tokens
@@ -390,6 +460,9 @@ async def _run_main_ocr(
         return bubbles, None, None
     if _is_openai(plan.ocr_engine):
         bubbles, tokens = await _run_openai_ocr(image_bytes, plan, keys, source_language, target_language)
+        return bubbles, tokens, None
+    if _is_claude(plan.ocr_engine):
+        bubbles, tokens = await _run_claude_ocr(image_bytes, plan, keys, source_language, target_language)
         return bubbles, tokens, None
     bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys, source_language, target_language)
     return bubbles, tokens, None

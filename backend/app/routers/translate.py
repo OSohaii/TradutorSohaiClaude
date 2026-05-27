@@ -10,9 +10,21 @@ from ..errors import ErrorCode, ProviderError
 from ..providers import deepl as deepl_provider
 from ..providers import gemini as gemini_provider
 from ..providers import google_translate as gt_provider
+from ..providers import openai as openai_provider
+from ..providers import claude as claude_provider
+from ..providers import deepseek as deepseek_provider
 from ..schemas.common import EngineId
 from ..schemas.translate import TranslateRequest, TranslateResponse
-from ..services.pipeline import _GEMINI_MODELS, _is_gemini
+from ..services.pipeline import (
+    _GEMINI_MODELS,
+    _OPENAI_MODELS,
+    _CLAUDE_MODELS,
+    _DEEPSEEK_MODELS,
+    _is_gemini,
+    _is_openai,
+    _is_claude,
+    _is_deepseek,
+)
 
 router = APIRouter()
 
@@ -38,6 +50,27 @@ async def translate(
             req.bubbles,
             model=_GEMINI_MODELS[engine],
             api_key=keys.for_gemini(),
+        )
+        return TranslateResponse(bubbles=bubbles, tokens=tokens)
+    if _is_openai(engine):
+        bubbles, tokens = await openai_provider.translate_bubbles(
+            req.bubbles,
+            model=_OPENAI_MODELS[engine],
+            api_key=keys.for_openai(),
+        )
+        return TranslateResponse(bubbles=bubbles, tokens=tokens)
+    if _is_claude(engine):
+        bubbles, tokens = await claude_provider.translate_bubbles(
+            req.bubbles,
+            model=_CLAUDE_MODELS[engine],
+            api_key=keys.for_claude(),
+        )
+        return TranslateResponse(bubbles=bubbles, tokens=tokens)
+    if _is_deepseek(engine):
+        bubbles, tokens = await deepseek_provider.translate_bubbles(
+            req.bubbles,
+            model=_DEEPSEEK_MODELS[engine],
+            api_key=keys.for_deepseek(),
         )
         return TranslateResponse(bubbles=bubbles, tokens=tokens)
 

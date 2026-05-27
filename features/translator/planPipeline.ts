@@ -14,6 +14,9 @@ interface PlanOptions {
 const isGemini = (e: EngineId): boolean =>
   e.startsWith('GEMINI_');
 
+const isClaude = (e: EngineId): boolean =>
+  e === 'CLAUDE' || e === 'CLAUDE_HAIKU';
+
 export function planPipeline(ocr: EngineId, trans: EngineId, opts: PlanOptions): PipelineStep[] {
   const steps: PipelineStep[] = [];
 
@@ -23,6 +26,9 @@ export function planPipeline(ocr: EngineId, trans: EngineId, opts: PlanOptions):
   } else if (ocr === trans && isGemini(ocr)) {
     // Same Gemini model for both OCR and translation - unified call
     steps.push({ kind: 'unified-gemini', model: ocr });
+  } else if (ocr === trans && isClaude(ocr)) {
+    // Same Claude model for both OCR and translation - unified call
+    steps.push({ kind: 'ocr-only', engine: ocr });
   } else {
     steps.push({ kind: 'ocr-only', engine: ocr });
     steps.push({ kind: 'translate-only', engine: trans });

@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     torii_api_key: str = ""
     google_api_key: str = ""
     openai_api_key: str = ""
+    claude_api_key: str = ""
+    deepseek_api_key: str = ""
 
     # Server behavior.
     environment: str = "development"
