@@ -77,8 +77,8 @@ const RightPanel: React.FC<RightPanelProps> = ({
       >
         <button
           onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(bubble.id); }}
-          className={`p-0.5 rounded transition-colors ${
-            isHidden ? 'text-slate-600' : 'text-slate-400 hover:text-purple-400'
+          className={`p-0.5 rounded transition-colors pointer-events-none ${
+            isHidden ? 'text-slate-600' : 'text-slate-400'
           }`}
           title="Preview apenas"
         >
@@ -132,30 +132,30 @@ const RightPanel: React.FC<RightPanelProps> = ({
           max={100}
           value={opacity}
           onChange={(e) => setOpacity(Number(e.target.value))}
-          className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-500/30"
+          className="w-full h-1 bg-white/10 rounded-full appearance-none pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-500/30"
         />
       </div>
 
       {/* Tools Grid */}
       <div className="border-t border-white/5 pt-3">
         <div className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">
-          Ferramentas
+          Ferramentas <span className="normal-case tracking-normal text-slate-600">(em breve)</span>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5 opacity-60 pointer-events-none">
           {tools.map((tool, idx) => (
             <button
               key={idx}
-              className="flex flex-col items-center gap-1 p-2 rounded-lg bg-white/5 hover:bg-purple-500/10 border border-white/5 hover:border-purple-500/20 transition-all group"
+              className="flex flex-col items-center gap-1 p-2 rounded-lg bg-white/5 border border-white/5 transition-all group"
               title={tool.label}
             >
               {typeof tool.icon === 'string' ? (
-                <span className="text-sm font-bold text-slate-400 group-hover:text-purple-400 transition-colors">
+                <span className="text-sm font-bold text-slate-400 transition-colors">
                   {tool.icon}
                 </span>
               ) : (
-                <tool.icon className="w-4 h-4 text-slate-400 group-hover:text-purple-400 transition-colors" />
+                <tool.icon className="w-4 h-4 text-slate-400 transition-colors" />
               )}
-              <span className="text-[8px] text-slate-500 group-hover:text-slate-300 transition-colors">
+              <span className="text-[8px] text-slate-500 transition-colors">
                 {tool.label}
               </span>
             </button>

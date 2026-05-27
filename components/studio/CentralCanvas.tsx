@@ -22,6 +22,7 @@ interface CentralCanvasProps {
   onGoToLibrary: () => void;
   onGoToReader: () => void;
   onOpenSettings: () => void;
+  onOpenFonts: () => void;
   onTogglePagesPanel: () => void;
   onToggleRightPanel: () => void;
   pagesPanelOpen: boolean;
@@ -52,6 +53,7 @@ const CentralCanvas: React.FC<CentralCanvasProps> = ({
   onGoToLibrary,
   onGoToReader,
   onOpenSettings,
+  onOpenFonts,
   onTogglePagesPanel,
   onToggleRightPanel,
   pagesPanelOpen,
@@ -71,6 +73,7 @@ const CentralCanvas: React.FC<CentralCanvasProps> = ({
         onGoToLibrary={onGoToLibrary}
         onGoToReader={onGoToReader}
         onOpenSettings={onOpenSettings}
+        onOpenFonts={onOpenFonts}
         onTogglePagesPanel={onTogglePagesPanel}
         onToggleRightPanel={onToggleRightPanel}
         onRetranslate={onRetranslate}

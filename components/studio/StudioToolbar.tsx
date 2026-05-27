@@ -16,6 +16,7 @@ interface StudioToolbarProps {
   onGoToLibrary: () => void;
   onGoToReader: () => void;
   onOpenSettings: () => void;
+  onOpenFonts: () => void;
   onTogglePagesPanel: () => void;
   onToggleRightPanel: () => void;
   onRetranslate: () => void;
@@ -30,6 +31,7 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
   onGoToLibrary,
   onGoToReader,
   onOpenSettings,
+  onOpenFonts,
   onTogglePagesPanel,
   onToggleRightPanel,
   onRetranslate,
@@ -131,6 +133,16 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
             Ler
           </motion.button>
         )}
+
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onOpenFonts}
+          className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+          title="Fontes"
+        >
+          <span className="text-xs font-bold leading-none">Aa</span>
+        </motion.button>
 
         <motion.button
           whileHover={{ scale: 1.05 }}

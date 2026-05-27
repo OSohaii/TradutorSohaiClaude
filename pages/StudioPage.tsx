@@ -25,6 +25,12 @@ interface StudioPageProps {
 
 const StudioPage: React.FC<StudioPageProps> = ({
   onOpenSettings,
+  onOpenIchigo: _onOpenIchigo,
+  onOpenTorii: _onOpenTorii,
+  onOpenDeepL: _onOpenDeepL,
+  onOpenGemini: _onOpenGemini,
+  onOpenOpenAI: _onOpenOpenAI,
+  onOpenFonts,
   onRetranslate,
   onTranslateImage,
   onTranslateOnly,
@@ -125,6 +131,7 @@ const StudioPage: React.FC<StudioPageProps> = ({
         onGoToLibrary={goToLibrary}
         onGoToReader={goToReader}
         onOpenSettings={onOpenSettings}
+        onOpenFonts={onOpenFonts}
         onTogglePagesPanel={togglePagesPanel}
         onToggleRightPanel={toggleRightPanel}
         pagesPanelOpen={pagesPanelOpen}
