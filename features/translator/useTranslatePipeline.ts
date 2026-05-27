@@ -27,7 +27,7 @@ export const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export interface UseTranslatePipelineOptions {
-  onAuthError: (modal: 'ichigo' | 'torii' | 'deepl' | 'gemini') => void;
+  onAuthError: (modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => void;
 }
 
 export interface UseTranslatePipelineReturn {
@@ -51,11 +51,15 @@ export const useTranslatePipeline = (
   const ichigoModel = useTranslatorStore(s => s.ichigoModel);
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
   const autoTranslate = useTranslatorStore(s => s.autoTranslate);
+  const sourceLanguage = useTranslatorStore(s => s.sourceLanguage);
+  const targetLanguage = useTranslatorStore(s => s.targetLanguage);
+  const targetLangCode = useTranslatorStore(s => s.targetLangCode);
 
   const ichigoToken = useAuthStore(s => s.ichigoToken);
   const toriiApiKey = useAuthStore(s => s.toriiApiKey);
   const deepLKey = useAuthStore(s => s.deepLKey);
   const geminiApiKey = useAuthStore(s => s.geminiApiKey);
+  const openaiApiKey = useAuthStore(s => s.openaiApiKey);
 
   const currentImage = useSessionStore(s => s.currentImage);
   const addImagesToSession = useSessionStore(s => s.addImages);
@@ -78,6 +82,7 @@ export const useTranslatePipeline = (
     deepl: deepLKey || undefined,
     torii: toriiApiKey || undefined,
     ichigo: ichigoToken || undefined,
+    openai: openaiApiKey || undefined,
   });
 
   const runPipeline = async (
@@ -99,9 +104,10 @@ export const useTranslatePipeline = (
           translation: { engine: transEngine },
           cleaner: { enabled: wantsCleaner, engine: 'TORII' },
           options: {
-            targetLanguage: 'Portugues (Brasil)',
-            targetLangCode: 'pt-BR',
+            targetLanguage,
+            targetLangCode,
             ichigoModel,
+            sourceLanguage,
           },
         },
         buildByok(),
@@ -117,9 +123,10 @@ export const useTranslatePipeline = (
             translation: { engine: transEngine },
             cleaner: { enabled: false },
             options: {
-              targetLanguage: 'Portugues (Brasil)',
-              targetLangCode: 'pt-BR',
+              targetLanguage,
+              targetLangCode,
               ichigoModel,
+              sourceLanguage,
             },
           },
           buildByok(),
@@ -161,6 +168,9 @@ export const useTranslatePipeline = (
             break;
           case 'torii':
             onAuthError('torii');
+            break;
+          case 'openai':
+            onAuthError('openai');
             break;
         }
       }
@@ -240,6 +250,12 @@ export const useTranslatePipeline = (
     if ((ocrEngine === 'ICHIGO') && !ichigoToken) { onAuthError('ichigo'); return false; }
     if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) { onAuthError('torii'); return false; }
     if (transEngine === 'DEEPL' && !deepLKey) { onAuthError('deepl'); return false; }
+    if ((ocrEngine === 'GPT4O' || ocrEngine === 'GPT4O_MINI' || transEngine === 'GPT4O' || transEngine === 'GPT4O_MINI') && !openaiApiKey) { onAuthError('openai'); return false; }
+
+    // Request notification permission on first batch start
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
 
     const newImages: ProcessedImage[] = files.map((file, index) => ({
       id: `${Date.now()}-${index}`,
@@ -253,8 +269,19 @@ export const useTranslatePipeline = (
     addImagesToSession(newImages);
 
     if (autoTranslate) {
-      for (let i = 0; i < newImages.length; i++) {
-        await processImage(newImages[i], files[i]);
+      // Parallel batch: process up to 3 images concurrently
+      const CONCURRENCY = 3;
+      for (let i = 0; i < newImages.length; i += CONCURRENCY) {
+        const chunk = newImages.slice(i, i + CONCURRENCY);
+        const chunkFiles = files.slice(i, i + CONCURRENCY);
+        await Promise.all(
+          chunk.map((img, idx) => processImage(img, chunkFiles[idx]))
+        );
+      }
+
+      // Browser notification on batch completion
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+        new Notification('Traducao Concluida!', { body: `${files.length} pagina(s) processada(s).` });
       }
     }
     return true;
@@ -264,6 +291,7 @@ export const useTranslatePipeline = (
     if ((ocrEngine === 'ICHIGO') && !ichigoToken) { onAuthError('ichigo'); return false; }
     if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) { onAuthError('torii'); return false; }
     if (transEngine === 'DEEPL' && !deepLKey) { onAuthError('deepl'); return false; }
+    if ((ocrEngine === 'GPT4O' || ocrEngine === 'GPT4O_MINI' || transEngine === 'GPT4O' || transEngine === 'GPT4O_MINI') && !openaiApiKey) { onAuthError('openai'); return false; }
     return true;
   };
 
@@ -294,8 +322,22 @@ export const useTranslatePipeline = (
     if (!checkCredentials()) return;
     const history = useSessionStore.getState().history;
     const idleImages = history.filter(h => h.status === 'idle');
-    for (const img of idleImages) {
-      await handleTranslateImage(img.id);
+
+    // Request notification permission
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
+
+    // Parallel batch: process up to 3 images concurrently
+    const CONCURRENCY = 3;
+    for (let i = 0; i < idleImages.length; i += CONCURRENCY) {
+      const chunk = idleImages.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(img => handleTranslateImage(img.id)));
+    }
+
+    // Browser notification on batch completion
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+      new Notification('Traducao Concluida!', { body: `${idleImages.length} pagina(s) processada(s).` });
     }
   };
 

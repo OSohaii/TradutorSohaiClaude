@@ -24,6 +24,7 @@ class Byok:
     torii: str | None = None
     google: str | None = None
     ichigo: str | None = None
+    openai: str | None = None
 
 
 async def get_byok(
@@ -32,6 +33,7 @@ async def get_byok(
     x_byok_torii: Annotated[str | None, Header()] = None,
     x_byok_google: Annotated[str | None, Header()] = None,
     x_byok_ichigo: Annotated[str | None, Header()] = None,
+    x_byok_openai: Annotated[str | None, Header()] = None,
 ) -> Byok:
     return Byok(
         gemini=_clean(x_byok_gemini),
@@ -39,6 +41,7 @@ async def get_byok(
         torii=_clean(x_byok_torii),
         google=_clean(x_byok_google),
         ichigo=_clean(x_byok_ichigo),
+        openai=_clean(x_byok_openai),
     )
 
 
@@ -92,6 +95,13 @@ class KeyResolver:
             hint="X-Byok-Ichigo header (obtained via POST /api/ichigo/login)",
         )
 
+    def for_openai(self) -> str:
+        return self._require(
+            self._byok.openai or self._settings.openai_api_key,
+            engine="openai",
+            hint="X-Byok-Openai header or OPENAI_API_KEY env var",
+        )
+
     @staticmethod
     def _require(value: str | None, *, engine: str, hint: str) -> str:
         if not value:
@@ -127,4 +137,6 @@ ENGINE_TO_BYOK: dict[EngineId, str] = {
     EngineId.TORII: "torii",
     EngineId.DEEPL: "deepl",
     EngineId.GOOGLE: "google",
+    EngineId.GPT4O: "openai",
+    EngineId.GPT4O_MINI: "openai",
 }

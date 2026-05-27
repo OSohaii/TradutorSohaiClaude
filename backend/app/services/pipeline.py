@@ -22,6 +22,7 @@ from ..providers import deepl as deepl_provider
 from ..providers import gemini as gemini_provider
 from ..providers import google_translate as gt_provider
 from ..providers import ichigo as ichigo_provider
+from ..providers import openai as openai_provider
 from ..providers import torii as torii_provider
 from ..schemas.common import EngineId, TextBubble, TokenUsage
 from ..schemas.pipeline import PipelineRequest, PipelineResponse
@@ -45,6 +46,16 @@ _GEMINI_MODELS: dict[EngineId, str] = {
 
 def _is_gemini(engine: EngineId) -> bool:
     return engine in _GEMINI_MODELS
+
+
+_OPENAI_MODELS: dict[EngineId, str] = {
+    EngineId.GPT4O: "gpt-4o",
+    EngineId.GPT4O_MINI: "gpt-4o-mini",
+}
+
+
+def _is_openai(engine: EngineId) -> bool:
+    return engine in _OPENAI_MODELS
 
 
 _FULL_PIPELINE_ENGINES = {
@@ -118,11 +129,25 @@ def plan_pipeline(req: PipelineRequest) -> Plan:
             translation_done_in_ocr=unified,
         )
 
-    # OCR engine that isn't Gemini/Ichigo/Torii doesn't make sense in the UI.
+    if _is_openai(ocr):
+        # OpenAI vision does OCR; if the same OpenAI engine is used for
+        # translation, we let the OCR pass also translate (unified).
+        is_native_match = ocr == translation
+        unified = is_native_match
+        return Plan(
+            use_torii_full=False,
+            use_torii_cleaner=req.cleaner.enabled,
+            ocr_engine=ocr,
+            translation_engine=translation,
+            ocr_skip_translation=not unified,
+            translation_done_in_ocr=unified,
+        )
+
+    # OCR engine that isn't Gemini/OpenAI/Ichigo/Torii doesn't make sense in the UI.
     raise ProviderError(
         ErrorCode.INVALID_INPUT,
         ocr.value,
-        f"Engine '{ocr.value}' não é uma OCR engine válida.",
+        f"Engine '{ocr.value}' nao e uma OCR engine valida.",
     )
 
 
@@ -174,6 +199,8 @@ async def _run_gemini_ocr(
     image_bytes: bytes,
     plan: Plan,
     keys: KeyResolver,
+    source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
 ) -> tuple[list[TextBubble], TokenUsage]:
     api_key = keys.for_gemini()
     model = _GEMINI_MODELS[plan.ocr_engine]
@@ -182,6 +209,27 @@ async def _run_gemini_ocr(
         model=model,
         api_key=api_key,
         skip_translation=plan.ocr_skip_translation,
+        source_language=source_language,
+        target_language=target_language,
+    )
+
+
+async def _run_openai_ocr(
+    image_bytes: bytes,
+    plan: Plan,
+    keys: KeyResolver,
+    source_language: str = "Japanese",
+    target_language: str = "Portuguese (Brazil)",
+) -> tuple[list[TextBubble], TokenUsage]:
+    api_key = keys.for_openai()
+    model = _OPENAI_MODELS[plan.ocr_engine]
+    return await openai_provider.process_manga_page(
+        image_bytes,
+        model=model,
+        api_key=api_key,
+        skip_translation=plan.ocr_skip_translation,
+        source_language=source_language,
+        target_language=target_language,
     )
 
 
@@ -189,6 +237,7 @@ async def _run_translation_step(
     bubbles: list[TextBubble],
     plan: Plan,
     keys: KeyResolver,
+    target_language: str = "Portuguese (Brazil)",
 ) -> tuple[list[TextBubble], TokenUsage | None]:
     engine = plan.translation_engine
     if engine == EngineId.GOOGLE:
@@ -206,10 +255,18 @@ async def _run_translation_step(
             api_key=keys.for_gemini(),
         )
         return translated, tokens
+    if _is_openai(engine):
+        translated, tokens = await openai_provider.translate_bubbles(
+            bubbles,
+            model=_OPENAI_MODELS[engine],
+            api_key=keys.for_openai(),
+            target_language=target_language,
+        )
+        return translated, tokens
     raise ProviderError(
         ErrorCode.INVALID_INPUT,
         engine.value,
-        f"Engine de tradução '{engine.value}' não suportada.",
+        f"Engine de traducao '{engine.value}' nao suportada.",
     )
 
 
@@ -260,7 +317,7 @@ async def run_pipeline(
     # translate (e.g. GEMINI_PRO -> DEEPL, or GEMINI_PRO_FULL -> X disabled).
     if plan.needs_separate_translation and bubbles:
         bubbles, translation_tokens = await _run_translation_step(
-            bubbles, plan, keys
+            bubbles, plan, keys, target_language=req.options.target_language
         )
 
     return PipelineResponse(
@@ -286,13 +343,18 @@ async def _run_main_ocr(
     keys: KeyResolver,
 ) -> tuple[list[TextBubble], TokenUsage | None, str | None]:
     """Returns (bubbles, ocr_tokens, translated_image_base64)."""
+    source_language = req.options.source_language
+    target_language = req.options.target_language
     if plan.use_torii_full:
         bubbles, image_bytes_out = await _run_torii_full(image_bytes, req, keys)
         return bubbles, None, base64.b64encode(image_bytes_out).decode("ascii")
     if plan.ocr_engine == EngineId.ICHIGO:
         bubbles = await _run_ichigo(image_bytes, req, keys)
         return bubbles, None, None
-    bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys)
+    if _is_openai(plan.ocr_engine):
+        bubbles, tokens = await _run_openai_ocr(image_bytes, plan, keys, source_language, target_language)
+        return bubbles, tokens, None
+    bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys, source_language, target_language)
     return bubbles, tokens, None
 
 

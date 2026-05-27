@@ -15,6 +15,10 @@ export interface TranslatorState {
   transEngine: EngineId;
   ichigoModel: string;
 
+  sourceLanguage: string;
+  targetLanguage: string;
+  targetLangCode: string;
+
   targetFont: string;
   targetBold: boolean;
   targetItalic: boolean;
@@ -45,6 +49,10 @@ export interface TranslatorState {
   setTransEngine: (v: EngineId) => void;
   setIchigoModel: (v: string) => void;
 
+  setSourceLanguage: (v: string) => void;
+  setTargetLanguage: (v: string) => void;
+  setTargetLangCode: (v: string) => void;
+
   setTargetFont: (v: string) => void;
   setTargetBold: (v: boolean) => void;
   setTargetItalic: (v: boolean) => void;
@@ -71,6 +79,10 @@ export const useTranslatorStore = create<TranslatorState>()(
       transEngine: 'GEMINI_35_FLASH',
       ichigoModel: 'Gemini 3 Pro',
 
+      sourceLanguage: 'Japanese',
+      targetLanguage: 'Portugues (Brasil)',
+      targetLangCode: 'pt-BR',
+
       targetFont: '',
       targetBold: true,
       targetItalic: false,
@@ -86,6 +98,10 @@ export const useTranslatorStore = create<TranslatorState>()(
       setOcrEngine: v => set({ ocrEngine: v }),
       setTransEngine: v => set({ transEngine: v }),
       setIchigoModel: v => set({ ichigoModel: v }),
+
+      setSourceLanguage: v => set({ sourceLanguage: v }),
+      setTargetLanguage: v => set({ targetLanguage: v }),
+      setTargetLangCode: v => set({ targetLangCode: v }),
 
       setTargetFont: v => set({ targetFont: v }),
       setTargetBold: v => set({ targetBold: v }),

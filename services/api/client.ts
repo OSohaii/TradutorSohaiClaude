@@ -17,6 +17,7 @@ export interface ByokKeys {
   torii?: string;
   google?: string;
   ichigo?: string;
+  openai?: string;
 }
 
 export type ApiErrorCode =
@@ -82,6 +83,7 @@ function byokHeaders(byok?: ByokKeys): Record<string, string> {
   if (byok.torii) headers['X-Byok-Torii'] = byok.torii;
   if (byok.google) headers['X-Byok-Google'] = byok.google;
   if (byok.ichigo) headers['X-Byok-Ichigo'] = byok.ichigo;
+  if (byok.openai) headers['X-Byok-Openai'] = byok.openai;
   return headers;
 }
 

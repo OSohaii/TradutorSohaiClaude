@@ -30,6 +30,7 @@ export interface PipelineOptions {
   targetLanguage?: string;
   targetLangCode?: string;
   ichigoModel?: string;
+  sourceLanguage?: string;
 }
 
 export interface PipelineRequest {
