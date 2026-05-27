@@ -68,7 +68,7 @@ export async function exportAsZip(
     });
 
     const pageNum = String(i + 1).padStart(3, '0');
-    const safeName = image.fileName.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+    const safeName = image.fileName.replace(/[^a-zA-Z0-9_\-.]/g, '_');
     folder!.file(`${pageNum}_${safeName}.png`, blob);
   }
 
