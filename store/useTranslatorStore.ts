@@ -60,7 +60,7 @@ export const useTranslatorStore = create<TranslatorState>()(
   persist(
     set => ({
       ocrEngine: 'GEMINI_FLASH',
-      transEngine: 'GEMINI_PRO',
+      transEngine: 'GEMINI_35_FLASH',
       ichigoModel: 'Gemini 3 Pro',
 
       targetFont: '',

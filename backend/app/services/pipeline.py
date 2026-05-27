@@ -36,8 +36,10 @@ _GEMINI_MODELS: dict[EngineId, str] = {
     EngineId.GEMINI_FLASH_FULL: "gemini-2.5-flash",
     EngineId.GEMINI_3_FLASH: "gemini-3-flash-preview",
     EngineId.GEMINI_3_FLASH_FULL: "gemini-3-flash-preview",
-    EngineId.GEMINI_PRO: "gemini-3-pro-preview",
-    EngineId.GEMINI_PRO_FULL: "gemini-3-pro-preview",
+    EngineId.GEMINI_PRO: "gemini-3.1-pro-preview",
+    EngineId.GEMINI_PRO_FULL: "gemini-3.1-pro-preview",
+    EngineId.GEMINI_35_FLASH: "gemini-3.5-flash",
+    EngineId.GEMINI_35_FLASH_FULL: "gemini-3.5-flash",
 }
 
 
@@ -49,6 +51,7 @@ _FULL_PIPELINE_ENGINES = {
     EngineId.GEMINI_FLASH_FULL,
     EngineId.GEMINI_3_FLASH_FULL,
     EngineId.GEMINI_PRO_FULL,
+    EngineId.GEMINI_35_FLASH_FULL,
 }
 
 

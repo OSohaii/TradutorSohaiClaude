@@ -136,7 +136,7 @@ export const migrateLegacyLocalStorage = (): void => {
       const payload = {
         state: {
           ocrEngine: partial.ocrEngine ?? 'GEMINI_FLASH',
-          transEngine: partial.transEngine ?? 'GEMINI_PRO',
+          transEngine: partial.transEngine ?? 'GEMINI_35_FLASH',
           ichigoModel: partial.ichigoModel ?? 'Gemini 3 Pro',
           targetFont: partial.targetFont ?? '',
           // Original default for bold was true (`!== 'false'`).
