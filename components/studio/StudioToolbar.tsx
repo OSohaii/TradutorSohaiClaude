@@ -51,6 +51,7 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
   const setIsEditingMode = useStudioStore(s => s.setIsEditingMode);
   const isPaintMode = useStudioStore(s => s.isPaintMode);
   const setIsPaintMode = useStudioStore(s => s.setIsPaintMode);
+  const setActiveTool = useStudioStore(s => s.setActiveTool);
 
   return (
     <header className="h-11 flex items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0f]/90 backdrop-blur-xl flex-shrink-0">
@@ -110,7 +111,7 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => { setIsEditingMode(!isEditingMode); setIsPaintMode(false); }}
+            onClick={() => { const next = !isEditingMode; setIsEditingMode(next); setIsPaintMode(false); setActiveTool(next ? 'text' : 'select'); }}
             className={`p-1.5 rounded-lg transition-all ${
               isEditingMode
                 ? 'bg-purple-500/15 text-purple-400'
@@ -123,7 +124,7 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); }}
+            onClick={() => { const next = !isPaintMode; setIsPaintMode(next); setIsEditingMode(false); setActiveTool(next ? 'brush' : 'select'); }}
             className={`p-1.5 rounded-lg transition-all ${
               isPaintMode
                 ? 'bg-purple-500/15 text-purple-400'

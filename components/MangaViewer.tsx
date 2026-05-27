@@ -138,12 +138,13 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [paintColor, setPaintColor] = useState('#FFFFFF');
 
   // When embedded, use studio store for zoom/editing/paint state
-  const storeZoom = useStudioStore(s => s.zoom);
+  const storeZoom = useStudioStore(s => embedded ? s.zoom : 1);
   const storeSetZoom = useStudioStore(s => s.setZoom);
-  const storeIsEditingMode = useStudioStore(s => s.isEditingMode);
+  const storeIsEditingMode = useStudioStore(s => embedded ? s.isEditingMode : false);
   const storeSetIsEditingMode = useStudioStore(s => s.setIsEditingMode);
-  const storeIsPaintMode = useStudioStore(s => s.isPaintMode);
+  const storeIsPaintMode = useStudioStore(s => embedded ? s.isPaintMode : false);
   const storeSetIsPaintMode = useStudioStore(s => s.setIsPaintMode);
+  const storeOverlayOpacity = useStudioStore(s => embedded ? s.overlayOpacity : 100);
 
   const effectiveZoom = embedded ? storeZoom : zoom;
   const effectiveSetZoom = embedded ? storeSetZoom : setZoom;
@@ -631,6 +632,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           {(image.status === 'done' || isOcrDone) && hasOverlays && (
             <div 
               className={`absolute inset-0 w-full h-full z-20 ${effectiveIsPaintMode ? 'pointer-events-none opacity-40' : ''}`}
+              style={{ opacity: effectiveIsPaintMode ? undefined : storeOverlayOpacity / 100 }}
               onClick={(e) => {
                 // Fecha edição se clicou no container (não em um balão)
                 if (e.target === e.currentTarget && editingBubbleId) {

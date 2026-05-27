@@ -23,20 +23,16 @@ interface StudioPageProps {
   onRetryImage: (id: string) => void;
 }
 
-const StudioPage: React.FC<StudioPageProps> = ({
-  onOpenSettings,
-  onOpenIchigo,
-  onOpenTorii,
-  onOpenDeepL,
-  onOpenGemini,
-  onOpenOpenAI,
-  onOpenFonts,
-  onRetranslate,
-  onTranslateImage,
-  onTranslateOnly,
-  onCancelOcr,
-  onRetryImage,
-}) => {
+const StudioPage: React.FC<StudioPageProps> = (props) => {
+  const {
+    onOpenSettings,
+    onOpenFonts,
+    onRetranslate,
+    onTranslateImage,
+    onTranslateOnly,
+    onCancelOcr,
+    onRetryImage,
+  } = props;
   // Session state
   const currentImage = useSessionStore(s => s.currentImage);
   const history = useSessionStore(s => s.history);

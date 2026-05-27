@@ -22,6 +22,8 @@ export interface StudioState {
   isEditingMode: boolean;
   /** Whether paint mode is active */
   isPaintMode: boolean;
+  /** Overlay opacity (0-100) for bubble overlay */
+  overlayOpacity: number;
 
   // Actions
   toggleLeftSidebar: () => void;
@@ -36,6 +38,7 @@ export interface StudioState {
   setZoom: (zoom: number | ((prev: number) => number)) => void;
   setIsEditingMode: (editing: boolean) => void;
   setIsPaintMode: (painting: boolean) => void;
+  setOverlayOpacity: (opacity: number) => void;
 }
 
 export const useStudioStore = create<StudioState>((set) => ({
@@ -48,6 +51,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   zoom: 1,
   isEditingMode: false,
   isPaintMode: false,
+  overlayOpacity: 100,
 
   toggleLeftSidebar: () => set(s => ({ leftSidebarOpen: !s.leftSidebarOpen })),
   togglePagesPanel: () => set(s => ({ pagesPanelOpen: !s.pagesPanelOpen })),
@@ -61,4 +65,5 @@ export const useStudioStore = create<StudioState>((set) => ({
   setZoom: (zoom) => set(s => ({ zoom: typeof zoom === 'function' ? zoom(s.zoom) : zoom })),
   setIsEditingMode: (editing) => set({ isEditingMode: editing }),
   setIsPaintMode: (painting) => set({ isPaintMode: painting }),
+  setOverlayOpacity: (opacity) => set({ overlayOpacity: opacity }),
 }));

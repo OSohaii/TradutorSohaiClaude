@@ -47,8 +47,9 @@ const RightPanel: React.FC<RightPanelProps> = ({
   const setActiveTool = useStudioStore(s => s.setActiveTool);
   const setIsEditingMode = useStudioStore(s => s.setIsEditingMode);
   const setIsPaintMode = useStudioStore(s => s.setIsPaintMode);
+  const overlayOpacity = useStudioStore(s => s.overlayOpacity);
+  const setOverlayOpacity = useStudioStore(s => s.setOverlayOpacity);
   const [hiddenLayers, setHiddenLayers] = React.useState<Set<string>>(new Set());
-  const [opacity, setOpacity] = React.useState(100);
 
   const handleToolClick = (toolId: StudioTool) => {
     setActiveTool(toolId);
@@ -142,14 +143,14 @@ const RightPanel: React.FC<RightPanelProps> = ({
           <span className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
             Opacidade
           </span>
-          <span className="text-[10px] text-slate-400 font-mono">{opacity}%</span>
+          <span className="text-[10px] text-slate-400 font-mono">{overlayOpacity}%</span>
         </div>
         <input
           type="range"
           min={0}
           max={100}
-          value={opacity}
-          onChange={(e) => setOpacity(Number(e.target.value))}
+          value={overlayOpacity}
+          onChange={(e) => setOverlayOpacity(Number(e.target.value))}
           className="w-full h-1 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-500/30"
         />
       </div>
