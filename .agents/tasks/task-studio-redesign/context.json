@@ -1,0 +1,30 @@
+{
+  "project_type": "React 19 SPA - Manga translation studio (MangaLens)",
+  "language": "TypeScript + React (TSX)",
+  "build_system": "Vite 6 with @vitejs/plugin-react, npm as package manager",
+  "test_framework": "Vitest with @testing-library/react, tests in tests/unit/ and tests/e2e/ (Playwright)",
+  "build_command": "npm run build",
+  "test_command": "npm run test",
+  "verification_instructions": "1. npm run typecheck (tsc --noEmit), 2. npm run test, 3. npm run build",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install",
+  "environment_constraints": "OPEN_INTERNET - full access available. Node 22 used in CI.",
+  "contribution_requirements": "CI checks: typecheck, lint, unit tests, build. All must pass.",
+  "key_patterns": "Zustand stores in store/ with barrel export from store/index.ts. Components in components/, pages in pages/, features in features/. TailwindCSS for styling. @heroicons/react for icons. Path alias '@/*' maps to project root. StudioPage receives callback props from App.tsx for modal opening and translation pipeline actions. MangaViewer is the central canvas component with rich editing (bubbles, paint, zoom, comparison). The app uses a view router pattern via useViewStore (library/studio/reader views).",
+  "relevant_files": [
+    "pages/StudioPage.tsx",
+    "components/MangaViewer.tsx",
+    "App.tsx",
+    "types.ts",
+    "store/useSessionStore.ts",
+    "store/useViewStore.ts",
+    "store/useTranslatorStore.ts",
+    "store/index.ts",
+    "tailwind.config.js",
+    "package.json",
+    "components/BubbleOverlay.tsx",
+    "components/ViewerToolbar.tsx",
+    "pages/LibraryPage.tsx"
+  ],
+  "directory_structure": "Root: App.tsx (main app with view router), pages/ (StudioPage, LibraryPage, ReaderPage), components/ (MangaViewer, BubbleOverlay, ViewerToolbar, ui/), features/ (settings/, translator/, viewer/), store/ (Zustand stores), types.ts, backend/ (FastAPI BFF)"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Install framer-motion for animations and update tailwind.config.js content paths to include pages/ and features/ directories. Verify the project builds cleanly after changes.",
+  "status": "completed",
+  "steps": [
+    "Run `npm install framer-motion` in the project root to add the animation library",
+    "Edit tailwind.config.js to add './pages/**/*.{ts,tsx}' and './features/**/*.{ts,tsx}' to the content array (currently only has index.html, index.tsx, App.tsx, and components/)",
+    "Run `npm run typecheck` and `npm run build` to verify the project compiles without errors"
+  ],
+  "acceptance_criteria": [
+    "framer-motion is listed in package.json dependencies",
+    "tailwind.config.js content array includes pages/ and features/ globs",
+    "npm run typecheck passes",
+    "npm run build passes"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "framer-motion v12.40.0 installed. Build produces 375KB JS bundle (gzipped 104KB). All checks pass cleanly."
+}
