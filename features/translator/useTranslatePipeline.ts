@@ -33,6 +33,8 @@ export interface UseTranslatePipelineOptions {
 export interface UseTranslatePipelineReturn {
   handleFilesSelect: (files: File[]) => Promise<boolean>;
   handleRetranslate: () => Promise<void>;
+  handleTranslateImage: (imageId: string) => Promise<void>;
+  handleTranslateAll: () => Promise<void>;
   totalCost: number;
   displayedTotalTokens: number;
 }
@@ -47,6 +49,7 @@ export const useTranslatePipeline = (
   const transEngine = useTranslatorStore(s => s.transEngine);
   const ichigoModel = useTranslatorStore(s => s.ichigoModel);
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
+  const autoTranslate = useTranslatorStore(s => s.autoTranslate);
 
   const ichigoToken = useAuthStore(s => s.ichigoToken);
   const toriiApiKey = useAuthStore(s => s.toriiApiKey);
@@ -243,16 +246,48 @@ export const useTranslatePipeline = (
       imageUrl: createTrackedObjectURL(file),
       base64: '',
       bubbles: [],
-      status: 'processing',
+      status: autoTranslate ? 'processing' : 'idle',
     }));
 
     addImagesToSession(newImages);
 
-    for (let i = 0; i < newImages.length; i++) {
-      await processImage(newImages[i], files[i]);
+    if (autoTranslate) {
+      for (let i = 0; i < newImages.length; i++) {
+        await processImage(newImages[i], files[i]);
+      }
     }
     return true;
   };
 
-  return { handleFilesSelect, handleRetranslate, totalCost, displayedTotalTokens };
+  const handleTranslateImage = async (imageId: string): Promise<void> => {
+    const history = useSessionStore.getState().history;
+    const img = history.find(h => h.id === imageId);
+    if (!img || img.status !== 'idle') return;
+
+    updateImageStateInStore(imageId, { status: 'processing' });
+
+    try {
+      const res = await fetch(img.imageUrl);
+      const blob = await res.blob();
+      const file = new File([blob], img.fileName, { type: blob.type });
+      const base64 = await fileToBase64(file);
+      const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
+      updateImageStateInStore(imageId, { base64: base64Clean, bubbles, translatedImageUrl, status: 'done' });
+    } catch (error: unknown) {
+      console.error(`Error translating ${img.fileName}:`, error);
+      const { errorMsg } = handlePipelineError(error);
+      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
+    }
+  };
+
+  const handleTranslateAll = async (): Promise<void> => {
+    const history = useSessionStore.getState().history;
+    const idleImages = history.filter(h => h.status === 'idle');
+    for (const img of idleImages) {
+      await handleTranslateImage(img.id);
+    }
+  };
+
+  return { handleFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, totalCost, displayedTotalTokens };
 };
