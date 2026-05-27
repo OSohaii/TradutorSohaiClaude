@@ -1,7 +1,7 @@
 {
   "task_id": "task-studio-redesign",
   "task_description": "Redesign StudioPage into a professional multi-panel manga editing workspace with left navigation sidebar, pages panel, central canvas (MangaViewer), and right editor panel. Premium dark cyberpunk aesthetic with glassmorphism, neon accents, and smooth animations.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002"],
   "blocked_reason": null,
   "verification": {
@@ -9,6 +9,6 @@
     "tests": "pass",
     "test_quality": "pass",
     "docker_build": "skipped",
-    "summary": "typecheck passes, all 25 unit tests pass, production build succeeds (522KB JS, 151KB gzipped)"
+    "summary": "typecheck passes, all unit tests pass, production build succeeds (524KB JS, 151KB gzipped). Review fixes applied: onOpenFonts wired to toolbar, tools grid marked (em breve) and disabled, preview controls made non-interactive."
   }
 }
