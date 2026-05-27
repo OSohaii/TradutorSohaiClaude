@@ -43,6 +43,8 @@ class EngineId(str, Enum):
     TORII = "TORII"
     DEEPL = "DEEPL"
     GOOGLE = "GOOGLE"
+    GPT4O = "GPT4O"
+    GPT4O_MINI = "GPT4O_MINI"
 
 
 BubbleType = Literal["dialogue", "sfx"]

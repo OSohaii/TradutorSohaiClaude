@@ -9,6 +9,7 @@ import IchigoSettingsModal from './features/settings/IchigoSettingsModal';
 import ToriiSettingsModal from './features/settings/ToriiSettingsModal';
 import DeepLSettingsModal from './features/settings/DeepLSettingsModal';
 import GeminiSettingsModal from './features/settings/GeminiSettingsModal';
+import OpenAISettingsModal from './features/settings/OpenAISettingsModal';
 import FontManagerModal from './features/settings/FontManagerModal';
 import {
   useAuthStore,
@@ -71,6 +72,12 @@ const App: React.FC = () => {
   const transEngine = useTranslatorStore(s => s.transEngine);
   const setTransEngine = useTranslatorStore(s => s.setTransEngine);
 
+  const sourceLanguage = useTranslatorStore(s => s.sourceLanguage);
+  const setSourceLanguage = useTranslatorStore(s => s.setSourceLanguage);
+  const targetLanguage = useTranslatorStore(s => s.targetLanguage);
+  const setTargetLanguage = useTranslatorStore(s => s.setTargetLanguage);
+  const setTargetLangCode = useTranslatorStore(s => s.setTargetLangCode);
+
   const targetFont = useTranslatorStore(s => s.targetFont);
   const setTargetFont = useTranslatorStore(s => s.setTargetFont);
   const targetBold = useTranslatorStore(s => s.targetBold);
@@ -97,6 +104,7 @@ const App: React.FC = () => {
   const toriiApiKey = useAuthStore(s => s.toriiApiKey);
   const geminiApiKey = useAuthStore(s => s.geminiApiKey);
   const deepLKey = useAuthStore(s => s.deepLKey);
+  const openaiApiKey = useAuthStore(s => s.openaiApiKey);
 
   // --- Custom fonts (for selector in sidebar) ---
   const customFonts = useFontsStore(s => s.customFonts);
@@ -117,16 +125,18 @@ const App: React.FC = () => {
   const [showToriiSettings, setShowToriiSettings] = useState(false);
   const [showDeepLSettings, setShowDeepLSettings] = useState(false);
   const [showGeminiSettings, setShowGeminiSettings] = useState(false);
+  const [showOpenAISettings, setShowOpenAISettings] = useState(false);
   const [showFontSettings, setShowFontSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
   // --- Translation pipeline hook ---
-  const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini') => {
+  const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => {
     switch (modal) {
       case 'ichigo': setShowIchigoSettings(true); break;
       case 'torii': setShowToriiSettings(true); break;
       case 'deepl': setShowDeepLSettings(true); break;
       case 'gemini': setShowGeminiSettings(true); break;
+      case 'openai': setShowOpenAISettings(true); break;
     }
   }, []);
 
@@ -362,6 +372,8 @@ const App: React.FC = () => {
                    <option value="GEMINI_3_FLASH_FULL">Gemini 3 Flash (Full)</option>
                    <option value="GEMINI_PRO">Gemini 3.1 Pro</option>
                    <option value="GEMINI_PRO_FULL">Gemini 3.1 Pro (Full)</option>
+                   <option value="GPT4O">GPT-4o</option>
+                   <option value="GPT4O_MINI">GPT-4o Mini</option>
                    <option value="ICHIGO">Ichigo</option>
                    <option value="TORII">Torii (Full)</option>
                 </select>
@@ -381,11 +393,50 @@ const App: React.FC = () => {
                            <option value="GEMINI_35_FLASH">Gemini 3.5 Flash</option>
                            <option value="GEMINI_PRO">Gemini 3.1 Pro</option>
                            <option value="GEMINI_FLASH">Gemini 2.5 Flash</option>
+                           <option value="GPT4O">GPT-4o</option>
+                           <option value="GPT4O_MINI">GPT-4o Mini</option>
                            <option value="DEEPL">DeepL</option>
                            <option value="GOOGLE">Google</option>
                            <option value="TORII">Torii</option>
                        </>
                    )}
+                </select>
+              </div>
+
+              {/* Source & Target Language Selectors */}
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 flex items-center gap-1.5"><LanguageIcon className="w-3.5 h-3.5"/> Origem</span>
+                <select value={sourceLanguage} onChange={(e) => setSourceLanguage(e.target.value)} className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate">
+                   <option value="Japanese">Japanese</option>
+                   <option value="Korean">Korean</option>
+                   <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                   <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                   <option value="English">English</option>
+                   <option value="Spanish">Spanish</option>
+                   <option value="French">French</option>
+                </select>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 flex items-center gap-1.5"><LanguageIcon className="w-3.5 h-3.5"/> Alvo</span>
+                <select value={targetLanguage} onChange={(e) => {
+                  const val = e.target.value;
+                  setTargetLanguage(val);
+                  const codeMap: Record<string, string> = {
+                    'Portugues (Brasil)': 'pt-BR',
+                    'English': 'en',
+                    'Spanish': 'es',
+                    'French': 'fr',
+                    'Japanese': 'ja',
+                    'Korean': 'ko',
+                  };
+                  setTargetLangCode(codeMap[val] || 'pt-BR');
+                }} className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate">
+                   <option value="Portugues (Brasil)">Portugues (Brasil)</option>
+                   <option value="English">English</option>
+                   <option value="Spanish">Spanish</option>
+                   <option value="French">French</option>
+                   <option value="Japanese">Japanese</option>
+                   <option value="Korean">Korean</option>
                 </select>
               </div>
 
@@ -495,11 +546,12 @@ const App: React.FC = () => {
            </button>
            
            {/* Settings Buttons Grid */}
-           <div className="grid grid-cols-5 gap-2">
+           <div className="grid grid-cols-6 gap-2">
               <button onClick={() => setShowIchigoSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${ichigoToken ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Ichigo"><UserCircleIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowToriiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${toriiApiKey ? 'bg-pink-500/10 border-pink-500/30 text-pink-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Torii"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowDeepLSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${deepLKey ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="DeepL"><LanguageIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowGeminiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${geminiApiKey ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Google Gemini Key (BYOK)"><CommandLineIcon className="w-5 h-5"/></button>
+              <button onClick={() => setShowOpenAISettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${openaiApiKey ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="OpenAI Key (BYOK)"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowFontSettings(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700" title="Gerenciar Fontes"><DocumentPlusIcon className="w-5 h-5"/></button>
            </div>
         </div>
@@ -630,6 +682,7 @@ const App: React.FC = () => {
       <ToriiSettingsModal isOpen={showToriiSettings} onClose={() => setShowToriiSettings(false)} />
       <DeepLSettingsModal isOpen={showDeepLSettings} onClose={() => setShowDeepLSettings(false)} />
       <GeminiSettingsModal isOpen={showGeminiSettings} onClose={() => setShowGeminiSettings(false)} />
+      <OpenAISettingsModal isOpen={showOpenAISettings} onClose={() => setShowOpenAISettings(false)} />
 
       {/* Library Manager */}
       <LibraryManager

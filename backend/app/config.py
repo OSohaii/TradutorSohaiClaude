@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     deepl_api_key: str = ""
     torii_api_key: str = ""
     google_api_key: str = ""
+    openai_api_key: str = ""
 
     # Server behavior.
     environment: str = "development"

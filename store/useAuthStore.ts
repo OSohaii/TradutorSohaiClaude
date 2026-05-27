@@ -30,6 +30,9 @@ export interface AuthState {
   // DeepL BYOK
   deepLKey: string;
 
+  // OpenAI BYOK
+  openaiApiKey: string;
+
   // ---- Actions ----
   setIchigoEmail: (v: string) => void;
   setIchigoToken: (v: string | null) => void;
@@ -53,6 +56,7 @@ export interface AuthState {
 
   setGeminiApiKey: (v: string) => void;
   setDeepLKey: (v: string) => void;
+  setOpenaiApiKey: (v: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -67,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
 
       geminiApiKey: '',
       deepLKey: '',
+      openaiApiKey: '',
 
       setIchigoEmail: v => set({ ichigoEmail: v }),
       setIchigoToken: v => set({ ichigoToken: v }),
@@ -104,6 +109,7 @@ export const useAuthStore = create<AuthState>()(
 
       setGeminiApiKey: v => set({ geminiApiKey: v }),
       setDeepLKey: v => set({ deepLKey: v }),
+      setOpenaiApiKey: v => set({ openaiApiKey: v }),
     }),
     {
       name: 'mangalens-auth',
@@ -123,6 +129,7 @@ export const useAuthStore = create<AuthState>()(
         toriiSaveKey: state.toriiSaveKey,
         geminiApiKey: state.geminiApiKey,
         deepLKey: state.deepLKey,
+        openaiApiKey: state.openaiApiKey,
       }),
     },
   ),

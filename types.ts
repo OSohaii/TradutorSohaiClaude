@@ -10,7 +10,9 @@ export type EngineId =
   | 'ICHIGO'
   | 'TORII'
   | 'DEEPL'
-  | 'GOOGLE';
+  | 'GOOGLE'
+  | 'GPT4O'
+  | 'GPT4O_MINI';
 
 // Forward declarations for Phase 5 engine registry. These types will be
 // consumed by the engine selection UI and capability-based routing logic.

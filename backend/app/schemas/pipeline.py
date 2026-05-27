@@ -32,6 +32,7 @@ class PipelineOptions(CamelModel):
     target_language: str = "Português (Brasil)"
     target_lang_code: str = "pt-BR"
     ichigo_model: str = "Gemini 3 Pro"
+    source_language: str = "Japanese"
 
 
 class PipelineRequest(CamelModel):

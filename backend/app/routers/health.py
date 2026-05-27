@@ -28,5 +28,6 @@ async def health(settings: Annotated[Settings, Depends(get_settings)]) -> dict:
             "torii": bool(settings.torii_api_key),
             "google": bool(settings.google_api_key),
             "ichigo": False,  # Ichigo always requires user login (BYOK only).
+            "openai": bool(settings.openai_api_key),
         },
     }
