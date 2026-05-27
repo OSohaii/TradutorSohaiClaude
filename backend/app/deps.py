@@ -121,6 +121,8 @@ ENGINE_TO_BYOK: dict[EngineId, str] = {
     EngineId.GEMINI_3_FLASH_FULL: "gemini",
     EngineId.GEMINI_PRO: "gemini",
     EngineId.GEMINI_PRO_FULL: "gemini",
+    EngineId.GEMINI_35_FLASH: "gemini",
+    EngineId.GEMINI_35_FLASH_FULL: "gemini",
     EngineId.ICHIGO: "ichigo",
     EngineId.TORII: "torii",
     EngineId.DEEPL: "deepl",

@@ -84,6 +84,8 @@ def test_engine_ids_match_frontend_strings():
         "GEMINI_3_FLASH_FULL",
         "GEMINI_PRO",
         "GEMINI_PRO_FULL",
+        "GEMINI_35_FLASH",
+        "GEMINI_35_FLASH_FULL",
         "ICHIGO",
         "TORII",
         "DEEPL",

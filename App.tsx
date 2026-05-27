@@ -314,28 +314,30 @@ const App: React.FC = () => {
                 <select value={ocrEngine} onChange={(e) => setOcrEngine(e.target.value as EngineId)} className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate">
                    <option value="GEMINI_FLASH">Gemini 2.5 Flash</option>
                    <option value="GEMINI_FLASH_FULL">Gemini 2.5 Flash (Full)</option>
-                   <option value="GEMINI_3_FLASH">Gemini 3 Flash (Novo)</option>
+                   <option value="GEMINI_35_FLASH">Gemini 3.5 Flash</option>
+                   <option value="GEMINI_35_FLASH_FULL">Gemini 3.5 Flash (Full)</option>
+                   <option value="GEMINI_3_FLASH">Gemini 3 Flash</option>
                    <option value="GEMINI_3_FLASH_FULL">Gemini 3 Flash (Full)</option>
-                   <option value="GEMINI_PRO">Gemini 3 Pro</option>
-                   <option value="GEMINI_PRO_FULL">Gemini 3 Pro (Full)</option>
+                   <option value="GEMINI_PRO">Gemini 3.1 Pro</option>
+                   <option value="GEMINI_PRO_FULL">Gemini 3.1 Pro (Full)</option>
                    <option value="ICHIGO">Ichigo</option>
                    <option value="TORII">Torii (Full)</option>
                 </select>
               </div>
-              <div className={`flex justify-between items-center text-xs transition-opacity ${(ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL') ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
+              <div className={`flex justify-between items-center text-xs transition-opacity ${(ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL' || ocrEngine === 'GEMINI_35_FLASH_FULL') ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
                 <span className="text-slate-400 flex items-center gap-1.5"><ChatBubbleLeftRightIcon className="w-3.5 h-3.5"/> Tradutor</span>
                 <select 
                     value={transEngine} 
                     onChange={(e) => setTransEngine(e.target.value as EngineId)} 
                     className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate"
-                    disabled={ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL'}
+                    disabled={ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL' || ocrEngine === 'GEMINI_35_FLASH_FULL'}
                 >
-                   {ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL' ? (
+                   {ocrEngine === 'GEMINI_PRO_FULL' || ocrEngine === 'GEMINI_FLASH_FULL' || ocrEngine === 'GEMINI_3_FLASH_FULL' || ocrEngine === 'GEMINI_35_FLASH_FULL' ? (
                        <option>Integrado (Full)</option>
                    ) : (
                        <>
-                           <option value="GEMINI_3_FLASH">Gemini 3 Flash (Novo)</option>
-                           <option value="GEMINI_PRO">Gemini 3 Pro</option>
+                           <option value="GEMINI_35_FLASH">Gemini 3.5 Flash</option>
+                           <option value="GEMINI_PRO">Gemini 3.1 Pro</option>
                            <option value="GEMINI_FLASH">Gemini 2.5 Flash</option>
                            <option value="DEEPL">DeepL</option>
                            <option value="GOOGLE">Google</option>
