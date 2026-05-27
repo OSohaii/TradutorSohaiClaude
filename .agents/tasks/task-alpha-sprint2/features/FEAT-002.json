@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Before/After Comparison Slider - A draggable slider overlay that reveals the original image on one side and the translated image (with bubble overlays) on the other side. Activated via a button in MangaViewer toolbar, only available when image status is 'done'.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Create ComparisonSlider component: Create components/ComparisonSlider.tsx. Props: originalImageUrl (string), translatedImageUrl (string | undefined), bubbles (TextBubble[]), defaultFont, globalBold, globalItalic, globalBubbleScale, onClose (callback). The component renders two overlapping images with a vertical draggable divider. Left side shows original image (clip-path or overflow hidden to the left of the divider). Right side shows either the translatedImageUrl (if available, for Torii full results) or the original image with BubbleOverlay components rendered on top (for OCR+translate results). The divider is a vertical line with a circular drag handle in the middle. Dragging moves the divider horizontally. Labels: 'Original' on the left side, 'Traduzido' on the right side.",
     "Step 2 - Slider interaction: Implement drag handling with mouse events (onMouseDown on handle, onMouseMove/onMouseUp on document). Also support touch events for mobile. The divider position is a percentage (0-100%) stored in state, defaulting to 50%. Use CSS clip-path: `inset(0 0 0 ${position}%)` on the right image and `inset(0 ${100-position}% 0 0)` on the left image (or equivalent approach with two absolutely positioned containers and overflow:hidden with variable width).",
@@ -25,5 +25,5 @@
     "Run `npm run build` in /projects/sandbox/TradutorSohaiClaude and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implemented successfully. The comparison button shows in two places: (1) next to download button when hasOverlays is true (OCR results), and (2) separately for isFullServerResult (Torii results). Both typecheck and build pass cleanly."
 }
