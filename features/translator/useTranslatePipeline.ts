@@ -180,12 +180,11 @@ export const useTranslatePipeline = (
   };
 
   const runPipelineTranslateOnly = async (
-    base64: string,
     bubbles: TextBubble[],
   ): Promise<{ bubbles: TextBubble[] }> => {
     const response = await runPipelineApi(
       {
-        imageBase64: base64,
+        imageBase64: 'AAAA', // Placeholder - backend does not use image data for translate-only
         ocr: { engine: ocrEngine },
         translation: { engine: transEngine },
         cleaner: { enabled: false },
@@ -354,6 +353,12 @@ export const useTranslatePipeline = (
     const img = history.find(h => h.id === imageId);
     if (!img || (img.status !== 'idle' && img.status !== 'ocr-done')) return;
 
+    if (!autoTranslate) {
+      // Delegate to handleOcrOnly when auto-translate is OFF
+      await handleOcrOnly(imageId);
+      return;
+    }
+
     updateImageStateInStore(imageId, { status: 'processing' });
 
     try {
@@ -363,15 +368,8 @@ export const useTranslatePipeline = (
       const base64 = await fileToBase64(file);
       const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
 
-      if (!autoTranslate) {
-        // OCR-only: let user preview before translation
-        const { bubbles } = await runPipelineOcrOnly(base64Clean);
-        updateImageStateInStore(imageId, { base64: base64Clean, bubbles, status: 'ocr-done' });
-      } else {
-        // Full pipeline
-        const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
-        updateImageStateInStore(imageId, { base64: base64Clean, bubbles, translatedImageUrl, status: 'done' });
-      }
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
+      updateImageStateInStore(imageId, { base64: base64Clean, bubbles, translatedImageUrl, status: 'done' });
     } catch (error: unknown) {
       console.error(`Error translating ${img.fileName}:`, error);
       const { errorMsg } = handlePipelineError(error);
@@ -411,15 +409,7 @@ export const useTranslatePipeline = (
     updateImageStateInStore(imageId, { status: 'processing' });
 
     try {
-      let base64Clean = img.base64;
-      if (!base64Clean) {
-        const res = await fetch(img.imageUrl);
-        const blob = await res.blob();
-        const file = new File([blob], img.fileName, { type: blob.type });
-        const dataUrl = await fileToBase64(file);
-        base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-      }
-      const { bubbles } = await runPipelineTranslateOnly(base64Clean, img.bubbles);
+      const { bubbles } = await runPipelineTranslateOnly(img.bubbles);
       updateImageStateInStore(imageId, { bubbles, status: 'done' });
     } catch (error: unknown) {
       console.error(`Error translating ${img.fileName}:`, error);
@@ -436,22 +426,33 @@ export const useTranslatePipeline = (
     if (!checkCredentials()) return;
     const history = useSessionStore.getState().history;
     const idleImages = history.filter(h => h.status === 'idle');
+    const ocrDoneImages = history.filter(h => h.status === 'ocr-done');
 
     // Request notification permission
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       void Notification.requestPermission();
     }
 
+    const totalCount = idleImages.length + ocrDoneImages.length;
+
     // Parallel batch: process up to 3 images concurrently
     const CONCURRENCY = 3;
+
+    // Process idle images through handleTranslateImage (full or ocr-only depending on autoTranslate)
     for (let i = 0; i < idleImages.length; i += CONCURRENCY) {
       const chunk = idleImages.slice(i, i + CONCURRENCY);
       await Promise.all(chunk.map(img => handleTranslateImage(img.id)));
     }
 
+    // Process ocr-done images through handleTranslateOnly
+    for (let i = 0; i < ocrDoneImages.length; i += CONCURRENCY) {
+      const chunk = ocrDoneImages.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(img => handleTranslateOnly(img.id)));
+    }
+
     // Browser notification on batch completion
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
-      new Notification('Traducao Concluida!', { body: `${idleImages.length} pagina(s) processada(s).` });
+      new Notification('Traducao Concluida!', { body: `${totalCount} pagina(s) processada(s).` });
     }
   };
 
