@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Preview OCR before Translation - Split pipeline into 2 phases so user can review OCR results before spending tokens on translation. When auto-translate is OFF and user clicks 'Traduzir', show intermediate 'ocr-done' state with original text in bubbles, then let user confirm/cancel before translating.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Create branch: Create git branch 'feature/alpha-sprint2' from current HEAD (feature/alpha-sprint1).",
     "Step 2 - Backend: Add 'phase' field to PipelineRequest in backend/app/schemas/pipeline.py. Add a new optional field `phase: Literal['full', 'ocr-only', 'translate-only'] = 'full'`. For 'ocr-only': force skip_translation=True regardless of engine combo, return bubbles with originalText only (translatedText empty). For 'translate-only': skip OCR entirely, accept bubbles from the request body and run only the translation step on them. Update PipelineRequest to accept an optional `bubbles` field (list[TextBubble], default empty) for 'translate-only' mode.",
@@ -31,5 +31,5 @@
     "Run `npm run build` in /projects/sandbox/TradutorSohaiClaude and confirm successful build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implementation complete. All acceptance criteria met: typecheck passes, build succeeds, phase field added to backend PipelineRequest, ProcessedImage includes ocr-done status, MangaViewer shows original text and review UI when ocr-done, sidebar shows confirm/cancel buttons. No pre-existing test failures (no tests required). The BubbleOverlay useLayoutEffect dependency array was extended to include showOriginalText for proper re-rendering."
 }
