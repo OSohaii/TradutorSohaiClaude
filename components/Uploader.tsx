@@ -9,6 +9,7 @@ import {
   CodeBracketIcon, 
   ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
+import { fetchImageViaProxy } from '../services/api/pipelineApi';
 
 interface UploaderProps {
   onFilesSelect: (files: File[]) => void;
@@ -33,47 +34,21 @@ const Uploader: React.FC<UploaderProps> = ({ onFilesSelect, isProcessing }) => {
     }
   };
 
-  // Helper function to download a single URL to a File object
+  // Helper function to download a single URL to a File object via BFF
   const downloadImage = async (url: string): Promise<File | null> => {
     try {
-      let blob: Blob | null = null;
-      
-      const tryFetch = async (fetchUrl: string) => {
-        const res = await fetch(fetchUrl);
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        return await res.blob();
-      };
+      const { base64, contentType, filename } = await fetchImageViaProxy(url);
 
-      try {
-        blob = await tryFetch(url);
-      } catch (err1: any) {
-        try {
-            const wsrvUrl = `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
-            blob = await tryFetch(wsrvUrl);
-        } catch (err2: any) {
-             try {
-                const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-                blob = await tryFetch(corsProxyUrl);
-             } catch (err3: any) {
-                 const allOriginsUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-                 blob = await tryFetch(allOriginsUrl);
-             }
-        }
+      // Convert base64 to blob
+      const byteString = atob(base64);
+      const bytes = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        bytes[i] = byteString.charCodeAt(i);
       }
-
-      if (!blob) return null;
-
-      let fileName = url.split('/').pop();
-      if (fileName && fileName.includes('?')) fileName = fileName.split('?')[0];
-      if (!fileName || fileName.length < 3 || !fileName.includes('.')) {
-        const type = blob.type;
-        const ext = type === 'image/jpeg' ? 'jpg' : type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
-        fileName = `web_image_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${ext}`;
-      }
-
-      return new File([blob], fileName, { type: blob.type });
+      const blob = new Blob([bytes], { type: contentType });
+      return new File([blob], filename, { type: contentType });
     } catch (error: any) {
-      console.error("Falha ao baixar:", url, error);
+      console.error("Falha ao baixar via BFF:", url, error);
       return null;
     }
   };

@@ -6,6 +6,7 @@ from .common import (
     TextBubble,
     TokenUsage,
 )
+from .fetch_image import FetchImageRequest, FetchImageResponse
 from .ichigo import IchigoLoginRequest, IchigoLoginResponse
 from .pipeline import (
     CleanerConfig,
@@ -21,6 +22,8 @@ __all__ = [
     "BubbleType",
     "CleanerConfig",
     "EngineId",
+    "FetchImageRequest",
+    "FetchImageResponse",
     "IchigoLoginRequest",
     "IchigoLoginResponse",
     "OcrConfig",
