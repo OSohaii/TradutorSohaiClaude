@@ -25,8 +25,8 @@ interface StudioPageProps {
 
 const StudioPage: React.FC<StudioPageProps> = ({
   onOpenSettings,
-  onRetranslate: _onRetranslate,
-  onTranslateImage: _onTranslateImage,
+  onRetranslate,
+  onTranslateImage,
   onTranslateOnly,
   onCancelOcr,
   onRetryImage,
@@ -120,6 +120,8 @@ const StudioPage: React.FC<StudioPageProps> = ({
         onRetryImage={onRetryImage}
         onTranslateOnly={onTranslateOnly}
         onCancelOcr={onCancelOcr}
+        onRetranslate={onRetranslate}
+        onTranslateImage={onTranslateImage}
         onGoToLibrary={goToLibrary}
         onGoToReader={goToReader}
         onOpenSettings={onOpenSettings}

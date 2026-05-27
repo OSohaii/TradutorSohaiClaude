@@ -17,6 +17,8 @@ interface CentralCanvasProps {
   onRetryImage: (id: string) => void;
   onTranslateOnly: (id: string) => void;
   onCancelOcr: (id: string) => void;
+  onRetranslate: () => void;
+  onTranslateImage: (id: string) => void;
   onGoToLibrary: () => void;
   onGoToReader: () => void;
   onOpenSettings: () => void;
@@ -45,6 +47,8 @@ const CentralCanvas: React.FC<CentralCanvasProps> = ({
   onRetryImage,
   onTranslateOnly,
   onCancelOcr,
+  onRetranslate,
+  onTranslateImage,
   onGoToLibrary,
   onGoToReader,
   onOpenSettings,
@@ -69,6 +73,8 @@ const CentralCanvas: React.FC<CentralCanvasProps> = ({
         onOpenSettings={onOpenSettings}
         onTogglePagesPanel={onTogglePagesPanel}
         onToggleRightPanel={onToggleRightPanel}
+        onRetranslate={onRetranslate}
+        onTranslateImage={onTranslateImage}
         pagesPanelOpen={pagesPanelOpen}
         rightPanelOpen={rightPanelOpen}
         hasDonePages={hasDonePages}

@@ -18,13 +18,13 @@ interface LeftSidebarProps {
 }
 
 const navItems = [
-  { icon: HomeIcon, label: 'Dashboard', id: 'dashboard' },
-  { icon: FolderIcon, label: 'Projetos', id: 'projects' },
-  { icon: BookOpenIcon, label: 'Biblioteca', id: 'library' },
-  { icon: DocumentTextIcon, label: 'Capitulos', id: 'chapters' },
-  { icon: Square3Stack3DIcon, label: 'Paginas', id: 'pages' },
-  { icon: ClipboardDocumentListIcon, label: 'Tarefas', id: 'tasks' },
-  { icon: UserGroupIcon, label: 'Equipe', id: 'team' },
+  { icon: HomeIcon, label: 'Dashboard', id: 'dashboard', enabled: true },
+  { icon: FolderIcon, label: 'Projetos', id: 'projects', enabled: false },
+  { icon: BookOpenIcon, label: 'Biblioteca', id: 'library', enabled: true },
+  { icon: DocumentTextIcon, label: 'Capitulos', id: 'chapters', enabled: false },
+  { icon: Square3Stack3DIcon, label: 'Paginas', id: 'pages', enabled: false },
+  { icon: ClipboardDocumentListIcon, label: 'Tarefas', id: 'tasks', enabled: false },
+  { icon: UserGroupIcon, label: 'Equipe', id: 'team', enabled: false },
 ];
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -61,21 +61,24 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.id === activeId;
+          const isDisabled = !item.enabled;
           return (
             <motion.button
               key={item.id}
-              onClick={() => handleClick(item.id)}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
+              onClick={() => !isDisabled && handleClick(item.id)}
+              whileHover={isDisabled ? undefined : { scale: 1.1 }}
+              whileTap={isDisabled ? undefined : { scale: 0.95 }}
               className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 group ${
-                isActive
+                isDisabled
+                  ? 'opacity-50 cursor-not-allowed text-slate-600'
+                  : isActive
                   ? 'bg-purple-500/20 text-purple-400 shadow-lg shadow-purple-500/10'
                   : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
               }`}
-              title={item.label}
+              title={isDisabled ? `${item.label} - Em breve` : item.label}
             >
               <Icon className="w-5 h-5" />
-              {isActive && (
+              {isActive && !isDisabled && (
                 <motion.div
                   layoutId="sidebar-indicator"
                   className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-purple-400 rounded-r-full"
@@ -83,7 +86,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               )}
               {/* Tooltip */}
               <span className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-xs text-slate-200 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                {item.label}
+                {isDisabled ? `${item.label} - Em breve` : item.label}
               </span>
             </motion.button>
           );

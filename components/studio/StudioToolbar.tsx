@@ -7,6 +7,7 @@ import {
   ViewColumnsIcon,
   Square3Stack3DIcon,
   ChevronRightIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { ProcessedImage } from '../../types';
 
@@ -17,6 +18,8 @@ interface StudioToolbarProps {
   onOpenSettings: () => void;
   onTogglePagesPanel: () => void;
   onToggleRightPanel: () => void;
+  onRetranslate: () => void;
+  onTranslateImage: (id: string) => void;
   pagesPanelOpen: boolean;
   rightPanelOpen: boolean;
   hasDonePages: boolean;
@@ -29,6 +32,8 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
   onOpenSettings,
   onTogglePagesPanel,
   onToggleRightPanel,
+  onRetranslate,
+  onTranslateImage,
   pagesPanelOpen,
   rightPanelOpen,
   hasDonePages,
@@ -61,12 +66,37 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1.5">
-        {/* Toggle panels (mobile) */}
+        {/* Retranslate All */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onRetranslate}
+          className="hidden md:inline-flex px-2 py-1 items-center gap-1 rounded-lg hover:bg-white/5 text-slate-400 hover:text-purple-400 transition-colors text-[10px] font-medium"
+          title="Retraduzir tudo"
+        >
+          <ArrowPathIcon className="w-3.5 h-3.5" />
+          Retraduzir
+        </motion.button>
+
+        {/* Translate current image */}
+        {currentImage && currentImage.status === 'ocr-done' && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onTranslateImage(currentImage.id)}
+            className="hidden md:inline-flex px-2 py-1 items-center gap-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 transition-colors text-[10px] font-medium border border-purple-500/20"
+            title="Traduzir esta imagem"
+          >
+            Traduzir
+          </motion.button>
+        )}
+
+        {/* Toggle panels - hidden below md since panels use hidden md:flex */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onTogglePagesPanel}
-          className={`p-1.5 rounded-lg transition-all md:flex ${
+          className={`hidden md:inline-flex p-1.5 rounded-lg transition-all ${
             pagesPanelOpen
               ? 'bg-purple-500/15 text-purple-400'
               : 'hover:bg-white/5 text-slate-400 hover:text-white'
@@ -80,7 +110,7 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onToggleRightPanel}
-          className={`p-1.5 rounded-lg transition-all ${
+          className={`hidden md:inline-flex p-1.5 rounded-lg transition-all ${
             rightPanelOpen
               ? 'bg-purple-500/15 text-purple-400'
               : 'hover:bg-white/5 text-slate-400 hover:text-white'

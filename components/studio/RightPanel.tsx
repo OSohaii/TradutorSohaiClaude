@@ -80,6 +80,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
           className={`p-0.5 rounded transition-colors ${
             isHidden ? 'text-slate-600' : 'text-slate-400 hover:text-purple-400'
           }`}
+          title="Preview apenas"
         >
           {isHidden ? <EyeSlashIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
         </button>
@@ -106,7 +107,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
       {/* Layer List */}
       <div>
         <div className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">
-          Camadas
+          Camadas <span className="normal-case tracking-normal text-slate-600">(preview)</span>
         </div>
         <div className="flex flex-col gap-0.5 max-h-[200px] overflow-y-auto scrollbar-thin">
           {bubbles.length === 0 ? (
@@ -118,10 +119,10 @@ const RightPanel: React.FC<RightPanelProps> = ({
       </div>
 
       {/* Opacity Slider */}
-      <div className="border-t border-white/5 pt-3">
+      <div className="border-t border-white/5 pt-3 opacity-70">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
-            Opacidade
+            Opacidade <span className="normal-case tracking-normal text-slate-600">(preview)</span>
           </span>
           <span className="text-[10px] text-slate-400 font-mono">{opacity}%</span>
         </div>
