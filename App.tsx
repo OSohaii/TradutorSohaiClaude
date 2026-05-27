@@ -4,6 +4,7 @@ import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontGroup } from './c
 import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
 import { useTranslatePipeline } from './features/translator/useTranslatePipeline';
+import { estimateCost } from './features/translator/costEstimation';
 import Toggle from './components/ui/Toggle';
 import ToastContainer from './components/ui/Toast';
 import BatchProgressBar from './components/ui/BatchProgressBar';
@@ -14,6 +15,7 @@ import GeminiSettingsModal from './features/settings/GeminiSettingsModal';
 import OpenAISettingsModal from './features/settings/OpenAISettingsModal';
 import FontManagerModal from './features/settings/FontManagerModal';
 import SettingsPanel from './features/settings/SettingsPanel';
+import OnboardingModal from './components/OnboardingModal';
 import {
   useAuthStore,
   useTranslatorStore,
@@ -54,6 +56,7 @@ import {
   ChevronRightIcon,
   Cog6ToothIcon,
   ArrowUpTrayIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -167,6 +170,9 @@ const App: React.FC = () => {
 
   // Unified settings panel
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // --- Translation pipeline hook ---
   const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => {
@@ -380,13 +386,20 @@ const App: React.FC = () => {
            ) : (
              <>
                {history.some(item => item.status === 'idle') && !sidebarCollapsed && (
+                 <>
                  <button
                    onClick={() => void handleTranslateAll()}
-                   className="w-full py-2 mb-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                   className="w-full py-2 mb-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors"
                  >
                    <PlayIcon className="w-4 h-4" />
                    Traduzir Todas
                  </button>
+                 {!autoTranslate && (
+                   <p className="text-[10px] text-slate-500 text-center mb-2">
+                     ~${estimateCost(ocrEngine as EngineId, transEngine as EngineId, history.filter(i => i.status === 'idle').length).toFixed(3)} estimado
+                   </p>
+                 )}
+                 </>
                )}
                {history.map((item, idx) => (
                <div 
@@ -693,7 +706,7 @@ const App: React.FC = () => {
            </button>
            
            {/* Settings Buttons Grid */}
-           <div className={`grid gap-2 ${sidebarCollapsed ? 'md:grid-cols-1' : 'grid-cols-7'}`}>
+           <div className={`grid gap-2 ${sidebarCollapsed ? 'md:grid-cols-1' : 'grid-cols-8'}`}>
               <button onClick={() => setShowIchigoSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${ichigoToken ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Ichigo"><UserCircleIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowToriiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${toriiApiKey ? 'bg-pink-500/10 border-pink-500/30 text-pink-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Torii"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowDeepLSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${deepLKey ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="DeepL"><LanguageIcon className="w-5 h-5"/></button>
@@ -701,6 +714,7 @@ const App: React.FC = () => {
               <button onClick={() => setShowOpenAISettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${openaiApiKey ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="OpenAI Key (BYOK)"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowFontSettings(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700" title="Gerenciar Fontes"><DocumentPlusIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowSettingsPanel(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-indigo-400" title="Configuracoes"><Cog6ToothIcon className="w-5 h-5"/></button>
+              <button onClick={() => { localStorage.removeItem('mangalens-onboarding-done'); setShowOnboarding(true); }} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-amber-400" title="Tutorial"><QuestionMarkCircleIcon className="w-5 h-5"/></button>
            </div>
         </div>
       </aside>
@@ -776,6 +790,9 @@ const App: React.FC = () => {
                    globalBubbleScale={globalBubbleScale}
                    customFonts={customFonts}
                    onRetry={() => retryImage(currentImage!.id)}
+                   totalPages={history.length}
+                   currentPageIndex={getCurrentIndex()}
+                   costLabel={!autoTranslate ? `~$${estimateCost(ocrEngine as EngineId, transEngine as EngineId, 1).toFixed(3)} estimado` : undefined}
                  />
                ) : (
                  /* Long Strip Mode (Scrollable List) */
@@ -850,6 +867,9 @@ const App: React.FC = () => {
 
       {/* Toast Notifications */}
       <ToastContainer />
+
+      {/* Onboarding Modal */}
+      <OnboardingModal forceOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
 
     </div>
   );
