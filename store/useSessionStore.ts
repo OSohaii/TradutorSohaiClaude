@@ -81,6 +81,8 @@ export interface SessionState {
   updateBubble: (bubble: TextBubble) => void;
   removeBubble: (bubbleId: string) => void;
   addBubble: (bubble: TextBubble) => void;
+  /** Like updateBubble but targets a specific image by ID (for strip mode). */
+  updateBubbleForImage: (imageId: string, bubble: TextBubble) => void;
 
   // ---- Bubble undo/redo (B8/B9) ----
   /**
@@ -249,6 +251,21 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       ),
       currentImage:
         state.currentImage?.id === cur.id
+          ? { ...state.currentImage, bubbles: newBubbles }
+          : state.currentImage,
+    }));
+  },
+
+  updateBubbleForImage: (imageId, bubble) => {
+    const target = get().history.find(h => h.id === imageId);
+    if (!target) return;
+    const newBubbles = target.bubbles.map(b => (b.id === bubble.id ? bubble : b));
+    set(state => ({
+      history: state.history.map(img =>
+        img.id === imageId ? { ...img, bubbles: newBubbles } : img,
+      ),
+      currentImage:
+        state.currentImage?.id === imageId
           ? { ...state.currentImage, bubbles: newBubbles }
           : state.currentImage,
     }));

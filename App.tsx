@@ -54,6 +54,7 @@ const App: React.FC = () => {
   const replaceSessionHistory = useSessionStore(s => s.replaceHistory);
   const updateImageStateInStore = useSessionStore(s => s.updateImageState);
   const updateBubbleInStore = useSessionStore(s => s.updateBubble);
+  const updateBubbleForImage = useSessionStore(s => s.updateBubbleForImage);
   const removeBubbleInStore = useSessionStore(s => s.removeBubble);
   const addBubbleInStore = useSessionStore(s => s.addBubble);
 
@@ -589,9 +590,7 @@ const App: React.FC = () => {
                               globalBubbleScale={globalBubbleScale}
                               customFonts={customFonts}
                               onBubbleUpdate={(b) => {
-                                 // Need to update the specific image in history
-                                 const newBubbles = img.bubbles.map(bub => bub.id === b.id ? b : bub);
-                                 updateImageState(img.id, { bubbles: newBubbles });
+                                 updateBubbleForImage(img.id, b);
                               }}
                             />
                          </div>
