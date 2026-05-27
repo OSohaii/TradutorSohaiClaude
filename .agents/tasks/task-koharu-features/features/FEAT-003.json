@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Add Lama Cleaner inpainting integration - a pipeline step that sends the image + text region masks to a Lama Cleaner endpoint to produce a cleaned version of the manga page (text removed). The cleanedImageBase64 field already exists in the PipelineResponse type.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Step 1 - Backend provider: Create backend/app/providers/lama_cleaner.py. Implement an async function inpaint(image_bytes: bytes, mask_bytes: bytes, lama_url: str) -> bytes that POSTs to {lama_url}/inpaint with multipart form data (image file + mask file). The mask should be a binary image where white = areas to inpaint (text regions). Return the cleaned image bytes. Include retry logic and error classification.",
     "Step 2 - Backend schemas: Add inpainting-related fields to PipelineRequest or a new InpaintConfig model in backend/app/schemas/pipeline.py: InpaintConfig with enabled: bool, lama_url: str (default 'http://localhost:8080').",
@@ -32,5 +32,5 @@
     "npx vite build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 28 tests pass, TypeScript compiles cleanly, vite build succeeds. Lama Cleaner inpainting runs after OCR (needs bounding boxes for mask generation), unlike Torii cleaner which runs concurrently. Mutual exclusion between Torii cleaner and Lama inpaint implemented in both sidebar and settings panel."
 }
