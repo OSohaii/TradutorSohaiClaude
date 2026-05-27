@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .errors import ProviderError, provider_error_handler
-from .routers import health, ichigo, pipeline, translate
+from .routers import fetch_image, health, ichigo, pipeline, translate
 
 
 def create_app() -> FastAPI:
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(pipeline.router, prefix="/api", tags=["pipeline"])
     app.include_router(translate.router, prefix="/api", tags=["translate"])
     app.include_router(ichigo.router, prefix="/api", tags=["ichigo"])
+    app.include_router(fetch_image.router, prefix="/api", tags=["fetch"])
 
     return app
 

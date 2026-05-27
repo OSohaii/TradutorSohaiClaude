@@ -2,7 +2,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
+import ViewerToolbar from './ViewerToolbar';
 import { useSessionStore } from '../store';
+import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
+import { downloadCanvas } from '../features/viewer/downloadCanvas';
 import { 
   MagnifyingGlassPlusIcon, 
   MagnifyingGlassMinusIcon,
@@ -11,28 +14,12 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PencilSquareIcon,
-  XMarkIcon,
-  CheckIcon,
-  TrashIcon,
   PaintBrushIcon,
-  SparklesIcon,
   SquaresPlusIcon,
   StopIcon,
   CubeTransparentIcon,
-  ArrowsPointingOutIcon,
-  SunIcon,
-  Bars3BottomLeftIcon,
-  Bars3Icon,
-  Bars3BottomRightIcon,
-  ArrowsPointingInIcon,
-  AdjustmentsVerticalIcon,
   ArrowDownTrayIcon,
-  DocumentDuplicateIcon,
-  ClipboardDocumentIcon,
-  ArrowUturnLeftIcon,
-  ArrowUturnRightIcon,
-  MinusIcon,
-  PlusIcon
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface MangaViewerProps {
@@ -44,6 +31,7 @@ interface MangaViewerProps {
   onBubbleAdd?: (bubble: TextBubble) => void;
   onImageUpdate?: (image: ProcessedImage) => void;
   onToggleStrip?: () => void;
+  onRetry?: () => void;
   stripMode?: boolean;
   isCleanMode?: boolean;
   defaultFont?: string;
@@ -99,6 +87,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   onBubbleAdd,
   onImageUpdate,
   onToggleStrip,
+  onRetry,
   stripMode = false,
   isCleanMode = false,
   defaultFont,
@@ -229,115 +218,26 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     }
   };
 
-  // Fechar edição com ESC e outros atalhos
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // ESC - Fechar edição ou cancelar criação de balão
-      if (e.key === 'Escape') {
-        if (isAddingBubble) {
-          setIsAddingBubble(false);
-          setNewBubbleStart(null);
-          return;
-        }
-        if (editingBubbleId) {
-          setEditingBubbleId(null);
-          return;
-        }
-      }
-
-      // Atalhos que funcionam quando um balão está selecionado
-      if (activeBubble && onBubbleUpdate) {
-        // Ctrl+B - Negrito
-        if (e.ctrlKey && e.key === 'b') {
-          e.preventDefault();
-          saveToHistory();
-          onBubbleUpdate({ 
-            ...activeBubble, 
-            fontWeight: activeBubble.fontWeight === 'bold' ? 'normal' : 'bold' 
-          });
-          return;
-        }
-
-        // Ctrl+I - Itálico
-        if (e.ctrlKey && e.key === 'i') {
-          e.preventDefault();
-          saveToHistory();
-          onBubbleUpdate({ 
-            ...activeBubble, 
-            fontStyle: activeBubble.fontStyle === 'italic' ? 'normal' : 'italic' 
-          });
-          return;
-        }
-
-        // Delete ou Backspace - Deletar balão (quando não está editando texto)
-        if ((e.key === 'Delete' || e.key === 'Backspace') && !document.activeElement?.tagName.match(/INPUT|TEXTAREA/i)) {
-          e.preventDefault();
-          if (onBubbleDelete) {
-            saveToHistory();
-            onBubbleDelete(activeBubble.id);
-            setEditingBubbleId(null);
-          }
-          return;
-        }
-
-        // + ou = - Aumentar fonte
-        if ((e.key === '+' || e.key === '=') && !e.ctrlKey) {
-          e.preventDefault();
-          const currentSize = activeBubble.fontSize || calculatedFontSizes[activeBubble.id] || 14;
-          saveToHistory();
-          onBubbleUpdate({ ...activeBubble, fontSize: Math.min(currentSize + 2, 120) });
-          return;
-        }
-
-        // - Diminuir fonte
-        if (e.key === '-' && !e.ctrlKey) {
-          e.preventDefault();
-          const currentSize = activeBubble.fontSize || calculatedFontSizes[activeBubble.id] || 14;
-          saveToHistory();
-          onBubbleUpdate({ ...activeBubble, fontSize: Math.max(currentSize - 2, 6) });
-          return;
-        }
-
-        // Ctrl+Shift+C - Copiar estilo
-        if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-          e.preventDefault();
-          copyStyle();
-          return;
-        }
-
-        // Ctrl+Shift+V - Colar estilo
-        if (e.ctrlKey && e.shiftKey && e.key === 'V') {
-          e.preventDefault();
-          pasteStyle();
-          return;
-        }
-      }
-
-      // Tab / Shift+Tab - Navegação entre balões (funciona no modo edição)
-      if (e.key === 'Tab' && isEditingMode) {
-        e.preventDefault();
-        navigateBubble(e.shiftKey ? 'prev' : 'next');
-        return;
-      }
-
-      // Ctrl+Z - Undo
-      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-
-      // Ctrl+Shift+Z ou Ctrl+Y - Redo
-      if ((e.ctrlKey && e.shiftKey && e.key === 'Z') || (e.ctrlKey && e.key === 'y')) {
-        e.preventDefault();
-        handleRedo();
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingBubbleId, activeBubble, isEditingMode, onBubbleUpdate, onBubbleDelete, calculatedFontSizes, copiedStyle, undoBubbles, redoBubbles]);
+  // Keyboard shortcuts (extracted to custom hook)
+  useViewerShortcuts({
+    activeBubble,
+    editingBubbleId,
+    isEditingMode,
+    isAddingBubble,
+    onBubbleUpdate,
+    onBubbleDelete,
+    calculatedFontSizes,
+    copiedStyle,
+    navigateBubble,
+    copyStyle,
+    pasteStyle,
+    saveToHistory,
+    undoBubbles,
+    redoBubbles,
+    setEditingBubbleId,
+    setIsAddingBubble,
+    setNewBubbleStart,
+  });
 
   useEffect(() => {
     setZoom(1);
@@ -485,153 +385,18 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
 
   const handleDownload = async () => {
     if (!imgRef.current) return;
-    const img = imgRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Pre-load all fonts used by bubbles
-    const uniqueFonts = [...new Set(image.bubbles.map(b => b.fontFamily || defaultFont || 'sans-serif'))];
-    await Promise.all(uniqueFonts.map(f => document.fonts.load(`bold 16px ${f}`).catch(() => {})));
-    await document.fonts.ready;
-
-    // 1. Draw base image
-    ctx.drawImage(img, 0, 0);
-
-    // 2. Draw mask/paint layer
-    if (canvasRef.current) {
-      ctx.drawImage(canvasRef.current, 0, 0);
-    }
-
-    // Helper: draw rounded rect using arc (no roundRect for compat)
-    const drawRoundedRect = (x: number, y: number, w: number, h: number, r: number) => {
-      r = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + w, y, x + w, y + h, r);
-      ctx.arcTo(x + w, y + h, x, y + h, r);
-      ctx.arcTo(x, y + h, x, y, r);
-      ctx.arcTo(x, y, x + w, y, r);
-      ctx.closePath();
-    };
-
-    // 3. Draw bubbles
-    for (const bubble of image.bubbles) {
-      const bWidth = (bubble.box.xmax - bubble.box.xmin) / 1000 * canvas.width;
-      const bHeight = (bubble.box.ymax - bubble.box.ymin) / 1000 * canvas.height;
-      const bx = bubble.box.xmin / 1000 * canvas.width;
-      const by = bubble.box.ymin / 1000 * canvas.height;
-
-      const bubbleScale = bubble.scale ?? globalBubbleScale;
-      const sWidth = bWidth * bubbleScale;
-      const sHeight = bHeight * bubbleScale;
-      const sx = bx + (bWidth - sWidth) / 2;
-      const sy = by + (bHeight - sHeight) / 2;
-
-      const centerX = sx + sWidth / 2;
-      const centerY = sy + sHeight / 2;
-      const rot = (bubble.rotation || 0) * Math.PI / 180;
-
-      ctx.save();
-      ctx.translate(centerX, centerY);
-      ctx.rotate(rot);
-
-      // Draw background
-      if (!isBubbleTransparent && bubble.type !== 'sfx') {
-        ctx.fillStyle = 'white';
-        drawRoundedRect(-sWidth / 2, -sHeight / 2, sWidth, sHeight, 10);
-        ctx.fill();
-      }
-
-      // Text properties
-      const bFontSize = bubble.fontSize || calculatedFontSizes[bubble.id] || 14;
-      const bFont = bubble.fontFamily || defaultFont || 'sans-serif';
-      const bWeight = bubble.fontWeight || (globalBold ? 'bold' : 'normal');
-      const bStyle = bubble.fontStyle || (globalItalic ? 'italic' : 'normal');
-      const bColor = bubble.color || '#000000';
-      const bLineHeight = (bubble.lineHeight || 1.15) * bFontSize;
-      const shouldUpper = bFont.includes("CC Wild Words Roman BR") || bFont.includes("Anime Ace BR");
-
-      ctx.font = `${bStyle} ${bWeight} ${bFontSize}px ${bFont}`;
-      ctx.textAlign = (bubble.textAlign || 'center') as CanvasTextAlign;
-      ctx.textBaseline = 'middle';
-
-      // Apply textTransform
-      let text = bubble.translatedText;
-      if (shouldUpper) text = text.toUpperCase();
-
-      // Word wrap
-      const words = text.split(' ');
-      const lines: string[] = [];
-      let currentLine = '';
-      const maxLineWidth = sWidth * 0.9;
-      for (const word of words) {
-        const testLine = currentLine ? currentLine + ' ' + word : word;
-        if (ctx.measureText(testLine).width > maxLineWidth && currentLine !== '') {
-          lines.push(currentLine);
-          currentLine = word;
-        } else {
-          currentLine = testLine;
-        }
-      }
-      lines.push(currentLine);
-
-      const totalTextHeight = lines.length * bLineHeight;
-      const textStartY = -totalTextHeight / 2 + bLineHeight / 2;
-      const textX = bubble.textAlign === 'left' ? -sWidth * 0.45
-                   : bubble.textAlign === 'right' ? sWidth * 0.45
-                   : 0;
-
-      // Draw text-shadow conditionally to match BubbleOverlay behavior:
-      // - showTextStroke ON: strong 4-offset white stroke
-      // - showTextStroke OFF + (transparent or sfx): glow effect (double white fill)
-      // - showTextStroke OFF + normal bubble: no shadow
-      // NOTE: Canvas 2D does not support letterSpacing natively, so it is
-      // intentionally omitted here. This matches browser canvas limitations.
-      if (showTextStroke) {
-        const shadowOffset = 1;
-        ctx.fillStyle = '#ffffff';
-        for (const [dx, dy] of [[-shadowOffset, -shadowOffset], [shadowOffset, -shadowOffset], [-shadowOffset, shadowOffset], [shadowOffset, shadowOffset]] as [number, number][]) {
-          let lineY = textStartY;
-          for (const line of lines) {
-            ctx.fillText(line.trim(), textX + dx, lineY + dy);
-            lineY += bLineHeight;
-          }
-        }
-      } else if (isBubbleTransparent || bubble.type === 'sfx') {
-        // Glow effect: draw white text twice with slight blur to mimic
-        // CSS "0px 0px 3px white, 0px 0px 3px white"
-        ctx.save();
-        ctx.shadowColor = 'white';
-        ctx.shadowBlur = 3;
-        ctx.fillStyle = '#ffffff';
-        for (let pass = 0; pass < 2; pass++) {
-          let lineY = textStartY;
-          for (const line of lines) {
-            ctx.fillText(line.trim(), textX, lineY);
-            lineY += bLineHeight;
-          }
-        }
-        ctx.restore();
-      }
-
-      // Draw main text
-      ctx.fillStyle = bColor;
-      let lineY = textStartY;
-      for (const line of lines) {
-        ctx.fillText(line.trim(), textX, lineY);
-        lineY += bLineHeight;
-      }
-
-      ctx.restore();
-    }
-
-    const link = document.createElement('a');
-    link.download = `traducao_${image.fileName}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    await downloadCanvas({
+      image,
+      imgElement: imgRef.current,
+      canvasElement: canvasRef.current,
+      defaultFont,
+      globalBold,
+      globalItalic,
+      globalBubbleScale,
+      isBubbleTransparent,
+      showTextStroke,
+      calculatedFontSizes,
+    });
   };
 
   return (
@@ -727,6 +492,24 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
             onClick={() => editingBubbleId && setEditingBubbleId(null)}
           />
 
+          {/* Error overlay */}
+          {image.status === 'error' && (
+            <div className="absolute inset-0 z-40 bg-slate-900/80 flex flex-col items-center justify-center gap-4 p-6">
+              <ExclamationTriangleIcon className="w-12 h-12 text-red-400" />
+              <p className="text-sm text-red-300 text-center max-w-xs">
+                {image.errorMessage || 'Erro na traducao'}
+              </p>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Tentar Novamente
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Overlay para adicionar novo balão */}
           {isAddingBubble && image.status === 'done' && (
             <div 
@@ -792,270 +575,26 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
 
       {/* Floating Unified Toolbar */}
       {activeBubble && (
-        <div 
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] bg-slate-900/95 backdrop-blur-sm border border-slate-700 p-3 rounded-2xl shadow-2xl animate-fade-in-up max-w-[95vw]"
-          onMouseDown={(e) => e.stopPropagation()} 
-          onClick={(e) => e.stopPropagation()}
-        >
-           {/* Header com navegação e botão de fechar */}
-           <div className="flex items-center justify-between mb-3 gap-4">
-             <div className="flex items-center gap-2">
-                {/* Navegação entre balões */}
-                <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
-                  <button 
-                    onClick={() => navigateBubble('prev')}
-                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
-                    title="Balão anterior (Shift+Tab)"
-                  >
-                    <ChevronLeftIcon className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs text-indigo-400 font-mono px-2">
-                    {currentBubbleIndex + 1}/{image.bubbles.length}
-                  </span>
-                  <button 
-                    onClick={() => navigateBubble('next')}
-                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
-                    title="Próximo balão (Tab)"
-                  >
-                    <ChevronRightIcon className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                <span className="text-xs font-bold text-white">Editar Balão</span>
-                <span className="bg-indigo-500/20 text-indigo-400 text-[10px] px-2 py-0.5 rounded-md font-mono">
-                   {activeBubble.fontSize || (calculatedFontSizes[activeBubble.id] ? Math.round(calculatedFontSizes[activeBubble.id]) : 'Auto')}px
-                </span>
-             </div>
-             
-             <div className="flex items-center gap-1">
-                {/* Copiar/Colar estilo */}
-                <button 
-                  onClick={copyStyle}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-                  title="Copiar estilo (Ctrl+Shift+C)"
-                >
-                  <DocumentDuplicateIcon className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={pasteStyle}
-                  disabled={!copiedStyle}
-                  className={`p-1.5 rounded-lg transition-colors ${copiedStyle ? 'text-indigo-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
-                  title="Colar estilo (Ctrl+Shift+V)"
-                >
-                  <ClipboardDocumentIcon className="w-4 h-4" />
-                </button>
-                
-                {/* Undo/Redo */}
-                <div className="w-px h-4 bg-slate-700 mx-1" />
-                <button 
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  className={`p-1.5 rounded-lg transition-colors ${canUndo ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
-                  title="Desfazer (Ctrl+Z)"
-                >
-                  <ArrowUturnLeftIcon className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={handleRedo}
-                  disabled={!canRedo}
-                  className={`p-1.5 rounded-lg transition-colors ${canRedo ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}
-                  title="Refazer (Ctrl+Shift+Z)"
-                >
-                  <ArrowUturnRightIcon className="w-4 h-4" />
-                </button>
-                
-                <div className="w-px h-4 bg-slate-700 mx-1" />
-                <button 
-                  onClick={() => startEditingBubble(null)}
-                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors"
-                  title="Fechar (ESC)"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
-             </div>
-           </div>
-
-           {/* Linha 1: Fonte, Tamanho, Cor, B/I */}
-           <div className="flex items-center gap-2 flex-wrap mb-2">
-              {/* Fonte */}
-              <select 
-                value={activeBubble.fontFamily || defaultFont} 
-                onChange={(e) => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, fontFamily: e.target.value }); }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 max-w-[130px]"
-              >
-                {allFonts.map((font, idx) => {
-                  if ('group' in font) return (
-                    <optgroup key={idx} label={font.group}>
-                      {font.options.map((opt, subIdx) => (
-                        <option key={`${idx}-${subIdx}`} value={opt.value}>{opt.name}</option>
-                      ))}
-                    </optgroup>
-                  );
-                  return <option key={idx} value={font.value}>{font.name}</option>;
-                })}
-              </select>
-              
-              {/* Tamanho com botões +/- */}
-              <div className="flex items-center bg-slate-800 rounded-lg border border-slate-700">
-                <button 
-                  onClick={() => {
-                    const currentSize = activeBubble.fontSize || calculatedFontSizes[activeBubble.id] || 14;
-                    saveToHistory();
-                    onBubbleUpdate && onBubbleUpdate({ ...activeBubble, fontSize: Math.max(currentSize - 2, 6) });
-                  }}
-                  className="px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-l-lg"
-                  title="Diminuir fonte (-)"
-                >
-                  <MinusIcon className="w-3 h-3" />
-                </button>
-                <input 
-                  type="number" 
-                  value={activeBubble.fontSize || ''} 
-                  onChange={(e) => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, fontSize: parseInt(e.target.value) || undefined }); }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  placeholder="Auto"
-                  className="w-12 bg-transparent text-white text-xs text-center border-x border-slate-700 py-1.5"
-                />
-                <button 
-                  onClick={() => {
-                    const currentSize = activeBubble.fontSize || calculatedFontSizes[activeBubble.id] || 14;
-                    saveToHistory();
-                    onBubbleUpdate && onBubbleUpdate({ ...activeBubble, fontSize: Math.min(currentSize + 2, 120) });
-                  }}
-                  className="px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-r-lg"
-                  title="Aumentar fonte (+)"
-                >
-                  <PlusIcon className="w-3 h-3" />
-                </button>
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-slate-700" />
-
-              {/* Cor do texto */}
-              <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg border border-slate-700 px-2 py-1">
-                <span className="text-[10px] text-slate-500">Cor</span>
-                <input 
-                  type="color"
-                  value={activeBubble.color || '#000000'}
-                  onChange={(e) => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, color: e.target.value }); }}
-                  className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-                  title="Cor do texto"
-                />
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-slate-700" />
-
-              {/* Negrito/Itálico */}
-              <div className="flex bg-slate-800 rounded-lg border border-slate-700">
-                <button 
-                  onClick={() => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, fontWeight: activeBubble.fontWeight === 'bold' ? 'normal' : 'bold' }); }}
-                  className={`px-2.5 py-1.5 text-xs font-bold rounded-l-lg transition-colors ${activeBubble.fontWeight === 'bold' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                  title="Negrito (Ctrl+B)"
-                >
-                  B
-                </button>
-                <button 
-                  onClick={() => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, fontStyle: activeBubble.fontStyle === 'italic' ? 'normal' : 'italic' }); }}
-                  className={`px-2.5 py-1.5 text-xs italic font-serif rounded-r-lg border-l border-slate-700 transition-colors ${activeBubble.fontStyle === 'italic' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                  title="Itálico (Ctrl+I)"
-                >
-                  I
-                </button>
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-slate-700" />
-
-              {/* Deletar */}
-              <button 
-                onClick={() => { 
-                  if(window.confirm('Deletar este balão?')) { 
-                    saveToHistory();
-                    onBubbleDelete && onBubbleDelete(activeBubble.id); 
-                    startEditingBubble(null); 
-                  }
-                }}
-                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
-                title="Deletar balão (Delete)"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
-           </div>
-
-           {/* Linha 2: Alinhamento, Escala, Line Height, Rotação */}
-           <div className="flex items-center gap-2 flex-wrap">
-              {/* Alinhamento Horizontal */}
-              <div className="flex items-center gap-1 bg-slate-800 rounded-lg border border-slate-700 p-1">
-                <span className="text-[9px] text-slate-500 px-1">Alin.</span>
-                {(['left', 'center', 'right'] as const).map(align => (
-                  <button 
-                    key={align}
-                    onClick={() => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, textAlign: align }); }}
-                    className={`p-1 rounded transition-colors ${activeBubble.textAlign === align || (!activeBubble.textAlign && align === 'center') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                    title={align === 'left' ? 'Esquerda' : align === 'center' ? 'Centro' : 'Direita'}
-                  >
-                    {align === 'left' ? <Bars3BottomLeftIcon className="w-3.5 h-3.5"/> : align === 'center' ? <Bars3Icon className="w-3.5 h-3.5"/> : <Bars3BottomRightIcon className="w-3.5 h-3.5"/>}
-                  </button>
-                ))}
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-slate-700" />
-
-              {/* Escala */}
-              <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg border border-slate-700 px-2 py-1">
-                <span className="text-[10px] text-slate-500">Escala</span>
-                <input 
-                  type="range" min="0.5" max="1.5" step="0.05"
-                  value={activeBubble.scale || 1}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onInput={(e) => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, scale: parseFloat((e.target as HTMLInputElement).value) }); }}
-                  className="w-14 h-1 bg-slate-700 rounded-lg appearance-none accent-indigo-500"
-                />
-                <span className="text-[10px] text-indigo-400 w-8">{Math.round((activeBubble.scale || 1) * 100)}%</span>
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-slate-700" />
-
-              {/* Line Height */}
-              <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg border border-slate-700 px-2 py-1">
-                <span className="text-[10px] text-slate-500">Linha</span>
-                <input 
-                  type="range" min="0.8" max="2" step="0.1"
-                  value={activeBubble.lineHeight || 1.15}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onInput={(e) => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, lineHeight: parseFloat((e.target as HTMLInputElement).value) }); }}
-                  className="w-12 h-1 bg-slate-700 rounded-lg appearance-none accent-indigo-500"
-                />
-                <span className="text-[10px] text-indigo-400 w-6">{(activeBubble.lineHeight || 1.15).toFixed(1)}</span>
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-slate-700" />
-
-              {/* Rotação */}
-              <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg border border-slate-700 px-2 py-1">
-                <span className="text-[10px] text-slate-500">Rot.</span>
-                <input 
-                  type="range" min="-45" max="45" step="1"
-                  value={activeBubble.rotation || 0}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onInput={(e) => { saveToHistory(); onBubbleUpdate && onBubbleUpdate({ ...activeBubble, rotation: parseInt((e.target as HTMLInputElement).value) }); }}
-                  className="w-12 h-1 bg-slate-700 rounded-lg appearance-none accent-indigo-500"
-                />
-                <span className="text-[10px] text-indigo-400 w-6">{activeBubble.rotation || 0}°</span>
-              </div>
-           </div>
-
-           {/* Dica */}
-           <p className="text-[10px] text-slate-600 mt-2 text-center">
-             Tab/Shift+Tab: navegar • Ctrl+B/I: estilo • +/-: fonte • Delete: remover • ESC: fechar
-           </p>
-        </div>
+        <ViewerToolbar
+          activeBubble={activeBubble}
+          currentBubbleIndex={currentBubbleIndex}
+          totalBubbles={image.bubbles.length}
+          calculatedFontSizes={calculatedFontSizes}
+          defaultFont={defaultFont}
+          allFonts={allFonts}
+          copiedStyle={copiedStyle}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          navigateBubble={navigateBubble}
+          copyStyle={copyStyle}
+          pasteStyle={pasteStyle}
+          handleUndo={handleUndo}
+          handleRedo={handleRedo}
+          saveToHistory={saveToHistory}
+          onBubbleUpdate={onBubbleUpdate}
+          onBubbleDelete={onBubbleDelete}
+          startEditingBubble={startEditingBubble}
+        />
       )}
     </div>
   );

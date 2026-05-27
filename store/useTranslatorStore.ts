@@ -33,6 +33,13 @@ export interface TranslatorState {
    */
   useToriiForCleaning: boolean;
 
+  /**
+   * When true (default), uploaded images are immediately sent through
+   * the translation pipeline. When false, they are queued with status
+   * 'idle' so the user can trigger translation manually.
+   */
+  autoTranslate: boolean;
+
   // ---- Actions ----
   setOcrEngine: (v: EngineId) => void;
   setTransEngine: (v: EngineId) => void;
@@ -48,6 +55,7 @@ export interface TranslatorState {
   setToriiStrokeDisabled: (v: boolean) => void;
   setToriiInpaintOnly: (v: boolean) => void;
   setUseToriiForCleaning: (v: boolean) => void;
+  setAutoTranslate: (v: boolean) => void;
 }
 
 /**
@@ -73,6 +81,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       toriiStrokeDisabled: false,
       toriiInpaintOnly: false,
       useToriiForCleaning: false,
+      autoTranslate: true,
 
       setOcrEngine: v => set({ ocrEngine: v }),
       setTransEngine: v => set({ transEngine: v }),
@@ -88,6 +97,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       setToriiStrokeDisabled: v => set({ toriiStrokeDisabled: v }),
       setToriiInpaintOnly: v => set({ toriiInpaintOnly: v }),
       setUseToriiForCleaning: v => set({ useToriiForCleaning: v }),
+      setAutoTranslate: v => set({ autoTranslate: v }),
     }),
     {
       name: 'mangalens-translator',

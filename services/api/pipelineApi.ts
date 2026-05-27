@@ -129,6 +129,25 @@ export function getHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>('/health');
 }
 
+// ---------------------------------------------------------------------------
+// Image fetch (CORS proxy bypass via BFF)
+// ---------------------------------------------------------------------------
+
+interface FetchImageApiResponse {
+  base64: string;
+  content_type: string;
+  filename: string;
+}
+
+/** Download an image via the BFF (avoids CORS). */
+export async function fetchImageViaProxy(url: string): Promise<{ base64: string; contentType: string; filename: string }> {
+  const resp = await apiFetch<FetchImageApiResponse>('/fetch-image', {
+    method: 'POST',
+    body: { url },
+  });
+  return { base64: resp.base64, contentType: resp.content_type, filename: resp.filename };
+}
+
 // Re-export so call sites only need this module.
 export { ApiError } from './client';
 export type { ByokKeys } from './client';

@@ -39,7 +39,10 @@ import {
   MinusCircleIcon,
   PlusCircleIcon,
   ViewfinderCircleIcon,
-  BookmarkSquareIcon
+  BookmarkSquareIcon,
+  ClockIcon,
+  PlayIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -51,6 +54,8 @@ const App: React.FC = () => {
   const replaceSessionHistory = useSessionStore(s => s.replaceHistory);
   const updateImageStateInStore = useSessionStore(s => s.updateImageState);
   const updateBubbleInStore = useSessionStore(s => s.updateBubble);
+  const updateBubbleForImage = useSessionStore(s => s.updateBubbleForImage);
+  const pushBubbleSnapshotForImage = useSessionStore(s => s.pushBubbleSnapshotForImage);
   const removeBubbleInStore = useSessionStore(s => s.removeBubble);
   const addBubbleInStore = useSessionStore(s => s.addBubble);
 
@@ -78,6 +83,9 @@ const App: React.FC = () => {
 
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
   const setUseToriiForCleaning = useTranslatorStore(s => s.setUseToriiForCleaning);
+
+  const autoTranslate = useTranslatorStore(s => s.autoTranslate);
+  const setAutoTranslate = useTranslatorStore(s => s.setAutoTranslate);
 
   // Seed the font default on first run.
   useEffect(() => {
@@ -122,7 +130,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, totalCost, displayedTotalTokens } = useTranslatePipeline({
+  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, retryImage, totalCost, displayedTotalTokens } = useTranslatePipeline({
     onAuthError,
   });
 
@@ -261,7 +269,17 @@ const App: React.FC = () => {
                <span className="text-xs">Sem histórico recente</span>
              </div>
            ) : (
-             history.map((item, idx) => (
+             <>
+               {history.some(item => item.status === 'idle') && (
+                 <button
+                   onClick={() => void handleTranslateAll()}
+                   className="w-full py-2 mb-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                 >
+                   <PlayIcon className="w-4 h-4" />
+                   Traduzir Todas
+                 </button>
+               )}
+               {history.map((item, idx) => (
                <div 
                  key={item.id}
                  onClick={() => { setCurrentImageInStore(item); setIsSidebarOpen(false); }}
@@ -279,6 +297,11 @@ const App: React.FC = () => {
                        <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"/>
                      </div>
                    )}
+                   {item.status === 'idle' && (
+                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                       <ClockIcon className="w-4 h-4 text-indigo-300" />
+                     </div>
+                   )}
                    {item.status === 'error' && (
                       <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center">
                         <ExclamationTriangleIcon className="w-4 h-4 text-red-200" />
@@ -290,10 +313,28 @@ const App: React.FC = () => {
                      <p className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">{item.fileName}</p>
                      <span className="text-[9px] text-slate-500">#{idx + 1}</span>
                    </div>
-                   <p className={`text-[10px] truncate ${item.status === 'error' ? 'text-red-400' : 'text-slate-500'}`}>
-                     {item.status === 'processing' ? 'Traduzindo...' : item.status === 'done' ? 'Concluído' : 'Falha'}
+                   <p className={`text-[10px] truncate ${item.status === 'error' ? 'text-red-400' : item.status === 'idle' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                     {item.status === 'processing' ? 'Traduzindo...' : item.status === 'done' ? 'Concluído' : item.status === 'idle' ? 'Pendente' : 'Falha'}
                    </p>
                  </div>
+                 {item.status === 'idle' && (
+                   <button
+                     onClick={(e) => { e.stopPropagation(); void handleTranslateImage(item.id); }}
+                     className="p-1.5 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-lg transition-all"
+                     title="Traduzir"
+                   >
+                     <PlayIcon className="w-4 h-4" />
+                   </button>
+                 )}
+                 {item.status === 'error' && (
+                   <button
+                     onClick={(e) => { e.stopPropagation(); void retryImage(item.id); }}
+                     className="p-1.5 hover:bg-amber-500/10 hover:text-amber-400 text-amber-500 rounded-lg transition-all"
+                     title="Tentar novamente"
+                   >
+                     <ArrowPathIcon className="w-4 h-4" />
+                   </button>
+                 )}
                  <button 
                    onClick={(e) => { e.stopPropagation(); removeImageFromSession(item.id); }}
                    className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-lg transition-all"
@@ -301,7 +342,8 @@ const App: React.FC = () => {
                    <TrashIcon className="w-4 h-4" />
                  </button>
                </div>
-             ))
+             ))}
+             </>
            )}
         </div>
 
@@ -426,6 +468,21 @@ const App: React.FC = () => {
                    />
                  </div>
               )}
+
+              {/* Auto-translate Toggle */}
+              <div className="pt-2 border-t border-slate-800">
+                <Toggle
+                  label={
+                    <span className="flex items-center gap-1.5" title="Traduzir automaticamente ao fazer upload">
+                      <LanguageIcon className={`w-3.5 h-3.5 ${autoTranslate ? 'text-indigo-400' : 'text-slate-500'}`} />
+                      Auto-traduzir
+                    </span>
+                  }
+                  checked={autoTranslate}
+                  onChange={() => setAutoTranslate(!autoTranslate)}
+                  colorClass="bg-indigo-600"
+                />
+              </div>
            </div>
            
            {/* Library Button */}
@@ -511,6 +568,7 @@ const App: React.FC = () => {
                    globalItalic={targetItalic}
                    globalBubbleScale={globalBubbleScale}
                    customFonts={customFonts}
+                   onRetry={() => retryImage(currentImage!.id)}
                  />
                ) : (
                  /* Long Strip Mode (Scrollable List) */
@@ -533,9 +591,8 @@ const App: React.FC = () => {
                               globalBubbleScale={globalBubbleScale}
                               customFonts={customFonts}
                               onBubbleUpdate={(b) => {
-                                 // Need to update the specific image in history
-                                 const newBubbles = img.bubbles.map(bub => bub.id === b.id ? b : bub);
-                                 updateImageState(img.id, { bubbles: newBubbles });
+                                 pushBubbleSnapshotForImage(img.id);
+                                 updateBubbleForImage(img.id, b);
                               }}
                             />
                          </div>
