@@ -11,6 +11,7 @@ interface BubbleOverlayProps {
   isPainted?: boolean;
   hideBorder?: boolean;
   isTransparent?: boolean;
+  showOriginalText?: boolean;
   onUpdate?: (updatedBubble: TextBubble) => void;
   onEditStart?: (bubble: TextBubble | null) => void;
   onPaintToggle?: (bubbleId: string) => void;
@@ -32,6 +33,7 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
   isPainted,
   hideBorder,
   isTransparent,
+  showOriginalText,
   onUpdate,
   onEditStart,
   onPaintToggle,
@@ -45,7 +47,8 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
   fontSizeCalculatedValue,
   activeEditingId
 }) => {
-  const { box, translatedText, fontFamily, fontSize, fontWeight, fontStyle, textAlign, letterSpacing, type, color, lineHeight, rotation } = bubble;
+  const { box, translatedText, originalText, fontFamily, fontSize, fontWeight, fontStyle, textAlign, letterSpacing, type, color, lineHeight, rotation } = bubble;
+  const displayText = showOriginalText ? originalText : translatedText;
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -120,7 +123,7 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
 
       const minFontSize = 4; 
       const maxFontSize = 120; 
-      const charCount = Math.max(translatedText.length, 1);
+      const charCount = Math.max(displayText.length, 1);
       const estimated = Math.sqrt((availWidth * availHeight * 0.9) / charCount);
       
       let high = Math.min(Math.max(estimated * 2, minFontSize), maxFontSize, availHeight);
@@ -146,7 +149,7 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
     const observer = new ResizeObserver(adjustFontSize);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [translatedText, width, height, effectiveFont, fontSize, effectiveFontWeight, effectiveFontStyle, isPaintSelectMode, defaultFont, isCurrentlyEditingText]);
+  }, [translatedText, width, height, effectiveFont, fontSize, effectiveFontWeight, effectiveFontStyle, isPaintSelectMode, defaultFont, isCurrentlyEditingText, showOriginalText]);
 
   const handleMouseDown = (e: React.MouseEvent, type: 'move' | 'nw' | 'ne' | 'se' | 'sw') => {
     if (!isEditing || !onUpdate || isPaintSelectMode || isCurrentlyEditingText) return;
@@ -308,7 +311,7 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
             color: effectiveColor
           }} 
         >
-          {translatedText}
+          {displayText}
         </span>
       );
     }

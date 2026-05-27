@@ -1,7 +1,7 @@
 """Request/response models for /api/pipeline."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -41,6 +41,8 @@ class PipelineRequest(CamelModel):
     translation: TranslationConfig
     cleaner: CleanerConfig = CleanerConfig()
     options: PipelineOptions = PipelineOptions()
+    phase: Literal['full', 'ocr-only', 'translate-only'] = 'full'
+    bubbles: list[TextBubble] = []
 
 
 class PipelineResponse(CamelModel):

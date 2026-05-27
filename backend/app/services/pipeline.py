@@ -286,6 +286,43 @@ async def run_pipeline(
     translation_tokens: TokenUsage | None = None
     bubbles: list[TextBubble] = []
 
+    # --- Phase: translate-only ---
+    # Skip OCR entirely; use the bubbles provided in the request and run
+    # only the translation step on them.
+    if req.phase == "translate-only":
+        bubbles = list(req.bubbles)
+        if bubbles:
+            bubbles, translation_tokens = await _run_translation_step(
+                bubbles, plan, keys, target_language=req.options.target_language
+            )
+        return PipelineResponse(
+            bubbles=bubbles,
+            translated_image_base64=None,
+            cleaned_image_base64=None,
+            tokens=translation_tokens,
+            warnings=warnings,
+            plan={
+                "ocrEngine": plan.ocr_engine.value,
+                "translationEngine": plan.translation_engine.value,
+                "translationDoneInOcr": False,
+                "useToriiFull": False,
+                "useToriiCleaner": False,
+            },
+        )
+
+    # --- Phase: ocr-only ---
+    # Force skip_translation regardless of engine combo so we get bubbles
+    # with originalText only (translatedText stays empty).
+    if req.phase == "ocr-only":
+        plan = Plan(
+            use_torii_full=plan.use_torii_full,
+            use_torii_cleaner=plan.use_torii_cleaner,
+            ocr_engine=plan.ocr_engine,
+            translation_engine=plan.translation_engine,
+            ocr_skip_translation=True,
+            translation_done_in_ocr=False,
+        )
+
     # Step 1: OCR (and possibly translation, depending on the plan) plus the
     # optional cleaner — both run concurrently. Cleaner failure is a warning,
     # OCR failure is fatal (B1 fix vs the original Promise.all).

@@ -35,6 +35,9 @@ export interface UseTranslatePipelineReturn {
   handleRetranslate: () => Promise<void>;
   handleTranslateImage: (imageId: string) => Promise<void>;
   handleTranslateAll: () => Promise<void>;
+  handleOcrOnly: (imageId: string) => Promise<void>;
+  handleTranslateOnly: (imageId: string) => Promise<void>;
+  handleCancelOcr: (imageId: string) => void;
   retryImage: (imageId: string) => Promise<void>;
   totalCost: number;
   displayedTotalTokens: number;
@@ -150,6 +153,56 @@ export const useTranslatePipeline = (
     }
 
     return { bubbles: response.bubbles, translatedImageUrl };
+  };
+
+  const runPipelineOcrOnly = async (
+    base64: string,
+  ): Promise<{ bubbles: TextBubble[] }> => {
+    const response = await runPipelineApi(
+      {
+        imageBase64: base64,
+        ocr: { engine: ocrEngine },
+        translation: { engine: transEngine },
+        cleaner: { enabled: false },
+        options: {
+          targetLanguage,
+          targetLangCode,
+          ichigoModel,
+          sourceLanguage,
+        },
+        phase: 'ocr-only',
+      },
+      buildByok(),
+    );
+
+    if (response.tokens) handleTokenUsage(response.tokens);
+    return { bubbles: response.bubbles };
+  };
+
+  const runPipelineTranslateOnly = async (
+    base64: string,
+    bubbles: TextBubble[],
+  ): Promise<{ bubbles: TextBubble[] }> => {
+    const response = await runPipelineApi(
+      {
+        imageBase64: base64,
+        ocr: { engine: ocrEngine },
+        translation: { engine: transEngine },
+        cleaner: { enabled: false },
+        options: {
+          targetLanguage,
+          targetLangCode,
+          ichigoModel,
+          sourceLanguage,
+        },
+        phase: 'translate-only',
+        bubbles,
+      },
+      buildByok(),
+    );
+
+    if (response.tokens) handleTokenUsage(response.tokens);
+    return { bubbles: response.bubbles };
   };
 
   const handlePipelineError = (error: unknown): { errorMsg: string } => {
@@ -299,6 +352,37 @@ export const useTranslatePipeline = (
     if (!checkCredentials()) return;
     const history = useSessionStore.getState().history;
     const img = history.find(h => h.id === imageId);
+    if (!img || (img.status !== 'idle' && img.status !== 'ocr-done')) return;
+
+    updateImageStateInStore(imageId, { status: 'processing' });
+
+    try {
+      const res = await fetch(img.imageUrl);
+      const blob = await res.blob();
+      const file = new File([blob], img.fileName, { type: blob.type });
+      const base64 = await fileToBase64(file);
+      const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
+
+      if (!autoTranslate) {
+        // OCR-only: let user preview before translation
+        const { bubbles } = await runPipelineOcrOnly(base64Clean);
+        updateImageStateInStore(imageId, { base64: base64Clean, bubbles, status: 'ocr-done' });
+      } else {
+        // Full pipeline
+        const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
+        updateImageStateInStore(imageId, { base64: base64Clean, bubbles, translatedImageUrl, status: 'done' });
+      }
+    } catch (error: unknown) {
+      console.error(`Error translating ${img.fileName}:`, error);
+      const { errorMsg } = handlePipelineError(error);
+      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
+    }
+  };
+
+  const handleOcrOnly = async (imageId: string): Promise<void> => {
+    if (!checkCredentials()) return;
+    const history = useSessionStore.getState().history;
+    const img = history.find(h => h.id === imageId);
     if (!img || img.status !== 'idle') return;
 
     updateImageStateInStore(imageId, { status: 'processing' });
@@ -309,13 +393,43 @@ export const useTranslatePipeline = (
       const file = new File([blob], img.fileName, { type: blob.type });
       const base64 = await fileToBase64(file);
       const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
-      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
-      updateImageStateInStore(imageId, { base64: base64Clean, bubbles, translatedImageUrl, status: 'done' });
+      const { bubbles } = await runPipelineOcrOnly(base64Clean);
+      updateImageStateInStore(imageId, { base64: base64Clean, bubbles, status: 'ocr-done' });
+    } catch (error: unknown) {
+      console.error(`Error OCR ${img.fileName}:`, error);
+      const { errorMsg } = handlePipelineError(error);
+      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
+    }
+  };
+
+  const handleTranslateOnly = async (imageId: string): Promise<void> => {
+    if (!checkCredentials()) return;
+    const history = useSessionStore.getState().history;
+    const img = history.find(h => h.id === imageId);
+    if (!img || img.status !== 'ocr-done') return;
+
+    updateImageStateInStore(imageId, { status: 'processing' });
+
+    try {
+      let base64Clean = img.base64;
+      if (!base64Clean) {
+        const res = await fetch(img.imageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], img.fileName, { type: blob.type });
+        const dataUrl = await fileToBase64(file);
+        base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      }
+      const { bubbles } = await runPipelineTranslateOnly(base64Clean, img.bubbles);
+      updateImageStateInStore(imageId, { bubbles, status: 'done' });
     } catch (error: unknown) {
       console.error(`Error translating ${img.fileName}:`, error);
       const { errorMsg } = handlePipelineError(error);
       updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
     }
+  };
+
+  const handleCancelOcr = (imageId: string): void => {
+    updateImageStateInStore(imageId, { bubbles: [], status: 'idle' });
   };
 
   const handleTranslateAll = async (): Promise<void> => {
@@ -372,5 +486,5 @@ export const useTranslatePipeline = (
     }
   };
 
-  return { handleFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, retryImage, totalCost, displayedTotalTokens };
+  return { handleFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, handleOcrOnly, handleTranslateOnly, handleCancelOcr, retryImage, totalCost, displayedTotalTokens };
 };
