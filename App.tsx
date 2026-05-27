@@ -3,11 +3,8 @@ import { ProcessedImage, TextBubble } from './types';
 import MangaViewer, { AVAILABLE_FONTS, DEFAULT_FONT_VALUE, FontGroup } from './components/MangaViewer';
 import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
-import BubbleSearch from './components/BubbleSearch';
 import { useTranslatePipeline } from './features/translator/useTranslatePipeline';
 import { estimateCost } from './features/translator/costEstimation';
-import { exportAsPDF, exportAsZIP, ExportRenderParams } from './features/viewer/exportService';
-import { useSessionPersistence, useClearSession } from './features/session/useSessionPersistence';
 import Toggle from './components/ui/Toggle';
 import ToastContainer from './components/ui/Toast';
 import BatchProgressBar from './components/ui/BatchProgressBar';
@@ -150,6 +147,7 @@ const App: React.FC = () => {
 
   // Drag & Drop state
   const [isDragOverWindow, setIsDragOverWindow] = useState(false);
+  const dragCounter = useRef(0);
 
   // Track items that have already played their shake animation (one-shot)
   const [shakenItems, setShakenItems] = useState<Set<string>>(new Set());
@@ -176,28 +174,6 @@ const App: React.FC = () => {
   // Onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Bubble Search (Ctrl+F)
-  const [showBubbleSearch, setShowBubbleSearch] = useState(false);
-
-  // Multi-select in sidebar
-  const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
-
-  // Session persistence
-  useSessionPersistence();
-  const clearSession = useClearSession();
-
-  // Ctrl+F keyboard shortcut for bubble search
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        setShowBubbleSearch(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
   // --- Translation pipeline hook ---
   const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => {
     switch (modal) {
@@ -214,8 +190,6 @@ const App: React.FC = () => {
   });
 
   const handleFilesSelect = async (files: File[]) => {
-    setIsDragOverWindow(false);
-
     const started = await pipelineFilesSelect(files);
     if (started) setIsSidebarOpen(false);
   };
@@ -242,65 +216,39 @@ const App: React.FC = () => {
   };
 
   // --- Global Drag & Drop Handlers ---
-  // Use a window-level listener to detect ONLY external file drags.
-  // React synthetic drag events on the root div fire even during file input
-  // dialogs in some browsers, causing the blue overlay to appear incorrectly.
-  useEffect(() => {
-    let counter = 0;
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      dragCounter.current++;
+      setIsDragOverWindow(true);
+    }
+  };
 
-    const onDragEnter = (e: DragEvent) => {
-      // Only respond to external file drags (not internal DOM drags)
-      if (!e.dataTransfer?.types.includes('Files')) return;
-      // Ignore if the drag originated from within the page (e.g. file input)
-      if (e.relatedTarget) return;
-      counter++;
-      if (counter === 1) setIsDragOverWindow(true);
-    };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
-    const onDragOver = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes('Files')) return;
-      e.preventDefault();
-    };
-
-    const onDragLeave = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes('Files')) return;
-      counter--;
-      if (counter <= 0) {
-        counter = 0;
-        setIsDragOverWindow(false);
-      }
-    };
-
-    const onDrop = (e: DragEvent) => {
-      counter = 0;
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
       setIsDragOverWindow(false);
-      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-        e.preventDefault();
-        void handleFilesSelect(Array.from(e.dataTransfer.files));
-      }
-    };
+    }
+  };
 
-    window.addEventListener('dragenter', onDragEnter);
-    window.addEventListener('dragover', onDragOver);
-    window.addEventListener('dragleave', onDragLeave);
-    window.addEventListener('drop', onDrop);
-
-    return () => {
-      window.removeEventListener('dragenter', onDragEnter);
-      window.removeEventListener('dragover', onDragOver);
-      window.removeEventListener('dragleave', onDragLeave);
-      window.removeEventListener('drop', onDrop);
-    };
-  }, [handleFilesSelect]);
-
-  // Safety: auto-dismiss drag overlay after 3 seconds
-  useEffect(() => {
-    if (!isDragOverWindow) return;
-    const timeout = setTimeout(() => {
-      setIsDragOverWindow(false);
-    }, 3000);
-    return () => clearTimeout(timeout);
-  }, [isDragOverWindow]);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragOverWindow(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      void handleFilesSelect(Array.from(e.dataTransfer.files));
+    }
+  };
 
   // Merge fonts for the selector (used by font <select> in sidebar)
   const availableFontsForSelector = useMemo(() => {
@@ -318,83 +266,6 @@ const App: React.FC = () => {
     replaceSessionHistory(images);
     setIsSidebarOpen(false);
   };
-
-  // Export helpers
-  const getExportParams = useCallback((): ExportRenderParams => ({
-    defaultFont: targetFont,
-    globalBold: targetBold,
-    globalItalic: targetItalic,
-    globalBubbleScale,
-    isBubbleTransparent: false,
-    showTextStroke: false,
-    calculatedFontSizes: {},
-  }), [targetFont, targetBold, targetItalic, globalBubbleScale]);
-
-  const doneImages = useMemo(() => history.filter(i => i.status === 'done'), [history]);
-
-  const handleExportPDF = useCallback(() => {
-    void exportAsPDF(doneImages, getExportParams());
-  }, [doneImages, getExportParams]);
-
-  const handleExportZIP = useCallback(() => {
-    void exportAsZIP(doneImages, getExportParams());
-  }, [doneImages, getExportParams]);
-
-  // Multi-select handlers
-  const handleSidebarItemClick = (item: ProcessedImage, e: React.MouseEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      setSelectedPages(prev => {
-        const next = new Set(prev);
-        if (next.has(item.id)) {
-          next.delete(item.id);
-        } else {
-          next.add(item.id);
-        }
-        return next;
-      });
-      return;
-    }
-    setCurrentImageInStore(item);
-    setIsSidebarOpen(false);
-  };
-
-  const handleTranslateSelected = () => {
-    selectedPages.forEach(id => {
-      void handleTranslateImage(id);
-    });
-    setSelectedPages(new Set());
-  };
-
-  const handleRetranslateSelected = () => {
-    selectedPages.forEach(id => {
-      void retryImage(id);
-    });
-    setSelectedPages(new Set());
-  };
-
-  const handleDeleteSelected = () => {
-    selectedPages.forEach(id => {
-      removeImageFromSession(id);
-    });
-    setSelectedPages(new Set());
-  };
-
-  const handleExportSelectedZIP = useCallback(() => {
-    const selectedImages = history.filter(i => selectedPages.has(i.id) && i.status === 'done');
-    if (selectedImages.length > 0) {
-      void exportAsZIP(selectedImages, getExportParams());
-    }
-    setSelectedPages(new Set());
-  }, [history, selectedPages, getExportParams]);
-
-  // Bubble search navigation
-  const handleBubbleSearchNavigate = useCallback((imageId: string, _bubbleId: string) => {
-    const target = history.find(h => h.id === imageId);
-    if (target) {
-      setCurrentImageInStore(target);
-    }
-  }, [history, setCurrentImageInStore]);
 
   // State Updates — kept as a thin wrapper so the JSX below doesn't
   // need to know about the store directly. The store handles applying
@@ -436,6 +307,10 @@ const App: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       
       {/* --- Global Drag & Drop Overlay --- */}
@@ -526,33 +401,15 @@ const App: React.FC = () => {
                  )}
                  </>
                )}
-               {doneImages.length > 0 && !sidebarCollapsed && (
-                 <div className="flex gap-1.5 mb-2">
-                   <button
-                     onClick={handleExportPDF}
-                     className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded-lg flex items-center justify-center gap-1 transition-colors"
-                   >
-                     Exportar PDF
-                   </button>
-                   <button
-                     onClick={handleExportZIP}
-                     className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded-lg flex items-center justify-center gap-1 transition-colors"
-                   >
-                     Exportar ZIP
-                   </button>
-                 </div>
-               )}
                {history.map((item, idx) => (
                <div 
                  key={item.id}
-                 onClick={(e) => handleSidebarItemClick(item, e)}
+                 onClick={() => { setCurrentImageInStore(item); setIsSidebarOpen(false); }}
                  className={`
                    group flex items-center ${sidebarCollapsed ? 'md:justify-center md:p-1 md:relative' : 'p-2'} rounded-xl cursor-pointer transition-all border
-                   ${selectedPages.has(item.id)
-                     ? 'bg-violet-600/20 border-violet-500/50 ring-1 ring-violet-500/30'
-                     : currentImage?.id === item.id 
-                       ? 'bg-indigo-600/10 border-indigo-500/50 shadow-sm' 
-                       : 'bg-slate-800/50 border-transparent hover:bg-slate-800 hover:border-slate-700'}
+                   ${currentImage?.id === item.id 
+                     ? 'bg-indigo-600/10 border-indigo-500/50 shadow-sm' 
+                     : 'bg-slate-800/50 border-transparent hover:bg-slate-800 hover:border-slate-700'}
                    ${item.status === 'error' && !shakenItems.has(item.id) ? 'animate-shake' : ''}
                  `}
                  onAnimationEnd={() => {
@@ -563,11 +420,6 @@ const App: React.FC = () => {
                >
                  <div className={`relative h-10 w-10 rounded-lg bg-slate-950 overflow-hidden flex-shrink-0 border border-slate-800 ${item.status === 'processing' ? 'ring-2 ring-indigo-500 animate-pulse' : ''}`}>
                    <img src={item.imageUrl} className="h-full w-full object-cover" loading="lazy" />
-                   {selectedPages.has(item.id) && (
-                     <div className="absolute inset-0 bg-violet-600/30 flex items-center justify-center">
-                       <CheckIcon className="w-5 h-5 text-violet-200" />
-                     </div>
-                   )}
                    {item.status === 'processing' && (
                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                        <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"/>
@@ -852,17 +704,6 @@ const App: React.FC = () => {
              <BookmarkSquareIcon className="w-5 h-5" />
              <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>Minha Biblioteca</span>
            </button>
-
-           {/* Clear Session Button */}
-           {!sidebarCollapsed && history.length > 0 && (
-             <button
-               onClick={clearSession}
-               className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-slate-700"
-             >
-               <TrashIcon className="w-3.5 h-3.5" />
-               Limpar Sessao
-             </button>
-           )}
            
            {/* Settings Buttons Grid */}
            <div className={`grid gap-2 ${sidebarCollapsed ? 'md:grid-cols-1' : 'grid-cols-8'}`}>
@@ -1006,51 +847,6 @@ const App: React.FC = () => {
            )}
         </div>
       </main>
-
-      {/* --- Multi-select Floating Action Bar --- */}
-      {selectedPages.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
-          <span className="text-xs text-slate-400">{selectedPages.size} selecionada{selectedPages.size !== 1 ? 's' : ''}</span>
-          <button
-            onClick={handleTranslateSelected}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg transition-colors"
-          >
-            Traduzir
-          </button>
-          <button
-            onClick={handleRetranslateSelected}
-            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-lg transition-colors"
-          >
-            Retraduzir
-          </button>
-          <button
-            onClick={handleDeleteSelected}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition-colors"
-          >
-            Deletar
-          </button>
-          <button
-            onClick={handleExportSelectedZIP}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg transition-colors"
-          >
-            Exportar ZIP
-          </button>
-          <button
-            onClick={() => setSelectedPages(new Set())}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
-          >
-            <XMarkIcon className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* --- Bubble Search Panel --- */}
-      <BubbleSearch
-        isOpen={showBubbleSearch}
-        onClose={() => setShowBubbleSearch(false)}
-        history={history}
-        onNavigate={handleBubbleSearchNavigate}
-      />
 
       {/* --- Modals (Settings) --- */}
       <FontManagerModal isOpen={showFontSettings} onClose={() => setShowFontSettings(false)} />

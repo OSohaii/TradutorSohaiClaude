@@ -33,7 +33,6 @@ class PipelineOptions(CamelModel):
     target_lang_code: str = "pt-BR"
     ichigo_model: str = "Gemini 3 Pro"
     source_language: str = "Japanese"
-    glossary: list[dict[str, str]] = []
 
 
 class PipelineRequest(CamelModel):

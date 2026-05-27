@@ -63,7 +63,6 @@ class TextBubble(CamelModel):
     translated_text: str
     box: BoundingBox
     type: BubbleType = "dialogue"
-    confidence: float | None = None
 
 
 class TokenUsage(CamelModel):
