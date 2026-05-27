@@ -1,0 +1,27 @@
+{
+  "project_type": "React SPA (Vite + TypeScript + Tailwind) - Manga translation app",
+  "language": "TypeScript/React",
+  "build_system": "Vite with npm",
+  "test_framework": "Vitest (but tests are NOT to be added per user request)",
+  "build_command": "npm run typecheck && npm run build",
+  "test_command": "npm run typecheck",
+  "verification_instructions": "Run npm run typecheck && npm run build. Both must pass with zero errors.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install (already done), then npm install jspdf jszip for new deps",
+  "environment_constraints": "OPEN_INTERNET - full network access. No Docker needed.",
+  "contribution_requirements": "No tests required. Typecheck + build must pass. Create feature branch, commit, push, open PR against main.",
+  "key_patterns": "Zustand stores in store/ dir. IndexedDB service in services/imageStorage.ts (DB_VERSION=2, stores: images, fonts). downloadCanvas.ts renders pages to canvas (reusable for PDF/ZIP). useToastStore for notifications. Sidebar in App.tsx with history list. Components use Tailwind + heroicons. Session state NOT persisted currently (useSessionStore is ephemeral per-tab).",
+  "relevant_files": [
+    "App.tsx",
+    "store/useSessionStore.ts",
+    "store/useToastStore.ts",
+    "store/index.ts",
+    "services/imageStorage.ts",
+    "features/viewer/downloadCanvas.ts",
+    "types.ts",
+    "components/MangaViewer.tsx",
+    "components/BubbleOverlay.tsx",
+    "package.json"
+  ],
+  "directory_structure": "Root: App.tsx, index.tsx, types.ts. components/ (MangaViewer, BubbleOverlay, Uploader, ui/). features/ (translator/, viewer/, settings/). services/ (imageStorage.ts, blobUrls.ts, libraryService.ts, api/). store/ (zustand stores). backend/ (proxy server)."
+}

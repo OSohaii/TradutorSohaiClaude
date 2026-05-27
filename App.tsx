@@ -16,12 +16,17 @@ import OpenAISettingsModal from './features/settings/OpenAISettingsModal';
 import FontManagerModal from './features/settings/FontManagerModal';
 import SettingsPanel from './features/settings/SettingsPanel';
 import OnboardingModal from './components/OnboardingModal';
+import BubbleSearch from './components/BubbleSearch';
+import { useSessionPersistence, clearPersistedSession } from './features/session/useSessionPersistence';
+import { exportAsPdf, exportAsZip } from './features/viewer/exportService';
+import type { RenderParams } from './features/viewer/exportService';
 import {
   useAuthStore,
   useTranslatorStore,
   useFontsStore,
   useSessionStore,
   useLibraryStore,
+  useToastStore,
   EngineId,
 } from './store';
 import { 
@@ -57,6 +62,9 @@ import {
   Cog6ToothIcon,
   ArrowUpTrayIcon,
   QuestionMarkCircleIcon,
+  MagnifyingGlassIcon,
+  DocumentArrowDownIcon,
+  ArchiveBoxIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -174,6 +182,34 @@ const App: React.FC = () => {
   // Onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  // Bubble Search
+  const [showBubbleSearch, setShowBubbleSearch] = useState(false);
+
+  // Multi-Select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const isMultiSelectMode = selectedIds.size > 0;
+
+  // Session persistence hook
+  useSessionPersistence();
+
+  // Toast store
+  const addToast = useToastStore(s => s.addToast);
+
+  // Ctrl+F for Bubble Search & Escape for multi-select
+  useEffect(() => {
+    const handleKeydown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowBubbleSearch(true);
+      }
+      if (e.key === 'Escape' && isMultiSelectMode) {
+        setSelectedIds(new Set());
+      }
+    };
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  }, [isMultiSelectMode]);
+
   // --- Translation pipeline hook ---
   const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => {
     switch (modal) {
@@ -265,6 +301,106 @@ const App: React.FC = () => {
   const handleLoadFromLibrary = (images: ProcessedImage[]) => {
     replaceSessionHistory(images);
     setIsSidebarOpen(false);
+  };
+
+  // --- Export handlers ---
+  const getRenderParams = useCallback((): RenderParams => ({
+    defaultFont: targetFont,
+    globalBold: targetBold,
+    globalItalic: targetItalic,
+    globalBubbleScale,
+    isBubbleTransparent: false,
+    showTextStroke: false,
+    calculatedFontSizes: {},
+  }), [targetFont, targetBold, targetItalic, globalBubbleScale]);
+
+  const handleExportPdf = useCallback(async (images?: ProcessedImage[]) => {
+    const pages = images || history.filter(i => i.status === 'done');
+    if (pages.length === 0) return;
+    try {
+      await exportAsPdf(pages, getRenderParams());
+      addToast(`PDF exportado com ${pages.length} paginas`, 'success');
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      addToast('Erro ao exportar PDF', 'error');
+    }
+  }, [history, getRenderParams, addToast]);
+
+  const handleExportZip = useCallback(async (images?: ProcessedImage[]) => {
+    const pages = images || history.filter(i => i.status === 'done');
+    if (pages.length === 0) return;
+    try {
+      await exportAsZip(pages, getRenderParams());
+      addToast(`ZIP exportado com ${pages.length} paginas`, 'success');
+    } catch (err) {
+      console.error('ZIP export failed:', err);
+      addToast('Erro ao exportar ZIP', 'error');
+    }
+  }, [history, getRenderParams, addToast]);
+
+  // --- Clear session handler ---
+  const handleClearSession = useCallback(async () => {
+    try {
+      await clearPersistedSession();
+      addToast('Sessao limpa', 'success');
+    } catch (err) {
+      console.error('Failed to clear session:', err);
+      addToast('Erro ao limpar sessao', 'error');
+    }
+  }, [addToast]);
+
+  // --- Multi-select handlers ---
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(history.map(i => i.id)));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchTranslate = async () => {
+    const items = history.filter(i => selectedIds.has(i.id) && (i.status === 'idle' || i.status === 'error'));
+    for (const item of items) {
+      void handleTranslateImage(item.id);
+    }
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchRetranslate = async () => {
+    const items = history.filter(i => selectedIds.has(i.id) && i.status === 'done');
+    for (const item of items) {
+      // Reset to idle so handleTranslateImage can process it
+      updateImageStateInStore(item.id, { status: 'idle', bubbles: [], translatedImageUrl: undefined, maskDataUrl: undefined });
+      void handleTranslateImage(item.id);
+    }
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchDelete = () => {
+    const ids = [...selectedIds];
+    for (const id of ids) {
+      removeImageFromSession(id);
+    }
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchExportZip = async () => {
+    const items = history.filter(i => selectedIds.has(i.id) && i.status === 'done');
+    if (items.length === 0) {
+      addToast('Nenhuma pagina selecionada esta pronta', 'warning');
+      return;
+    }
+    await handleExportZip(items);
+    setSelectedIds(new Set());
   };
 
   // State Updates — kept as a thin wrapper so the JSX below doesn't
@@ -404,12 +540,21 @@ const App: React.FC = () => {
                {history.map((item, idx) => (
                <div 
                  key={item.id}
-                 onClick={() => { setCurrentImageInStore(item); setIsSidebarOpen(false); }}
+                 onClick={(e) => { 
+                   if (e.ctrlKey || e.metaKey) {
+                     toggleSelection(item.id);
+                   } else {
+                     setCurrentImageInStore(item); 
+                     setIsSidebarOpen(false); 
+                   }
+                 }}
                  className={`
                    group flex items-center ${sidebarCollapsed ? 'md:justify-center md:p-1 md:relative' : 'p-2'} rounded-xl cursor-pointer transition-all border
-                   ${currentImage?.id === item.id 
-                     ? 'bg-indigo-600/10 border-indigo-500/50 shadow-sm' 
-                     : 'bg-slate-800/50 border-transparent hover:bg-slate-800 hover:border-slate-700'}
+                   ${selectedIds.has(item.id)
+                     ? 'bg-violet-600/20 border-violet-500/50 ring-1 ring-violet-500/30'
+                     : currentImage?.id === item.id 
+                       ? 'bg-indigo-600/10 border-indigo-500/50 shadow-sm' 
+                       : 'bg-slate-800/50 border-transparent hover:bg-slate-800 hover:border-slate-700'}
                    ${item.status === 'error' && !shakenItems.has(item.id) ? 'animate-shake' : ''}
                  `}
                  onAnimationEnd={() => {
@@ -420,6 +565,11 @@ const App: React.FC = () => {
                >
                  <div className={`relative h-10 w-10 rounded-lg bg-slate-950 overflow-hidden flex-shrink-0 border border-slate-800 ${item.status === 'processing' ? 'ring-2 ring-indigo-500 animate-pulse' : ''}`}>
                    <img src={item.imageUrl} className="h-full w-full object-cover" loading="lazy" />
+                   {selectedIds.has(item.id) && (
+                     <div className="absolute inset-0 bg-violet-600/40 flex items-center justify-center">
+                       <CheckIcon className="w-5 h-5 text-white" />
+                     </div>
+                   )}
                    {item.status === 'processing' && (
                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                        <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"/>
@@ -515,6 +665,33 @@ const App: React.FC = () => {
              </>
            )}
         </div>
+
+        {/* Multi-select action bar */}
+        {isMultiSelectMode && !sidebarCollapsed && (
+          <div className="p-3 bg-violet-900/30 border-t border-violet-500/30 space-y-2">
+            <div className="flex items-center justify-between text-xs text-violet-300 mb-1">
+              <span>{selectedIds.size} selecionadas</span>
+              <div className="flex gap-1">
+                <button onClick={handleSelectAll} className="px-2 py-0.5 text-[10px] bg-violet-600/30 hover:bg-violet-600/50 rounded transition-colors">Todas</button>
+                <button onClick={handleClearSelection} className="px-2 py-0.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded transition-colors">Limpar</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button onClick={() => void handleBatchTranslate()} className="py-1.5 text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1">
+                <PlayIcon className="w-3 h-3" /> Traduzir
+              </button>
+              <button onClick={() => void handleBatchRetranslate()} className="py-1.5 text-[10px] font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1">
+                <ArrowPathIcon className="w-3 h-3" /> Retraduzir
+              </button>
+              <button onClick={() => void handleBatchExportZip()} className="py-1.5 text-[10px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1">
+                <ArchiveBoxIcon className="w-3 h-3" /> Exportar ZIP
+              </button>
+              <button onClick={handleBatchDelete} className="py-1.5 text-[10px] font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1">
+                <TrashIcon className="w-3 h-3" /> Deletar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Sidebar Footer Controls */}
         <div className={`p-4 bg-slate-900 border-t border-slate-800 space-y-4 ${sidebarCollapsed ? 'md:p-2 md:space-y-2' : ''}`}>
@@ -704,6 +881,35 @@ const App: React.FC = () => {
              <BookmarkSquareIcon className="w-5 h-5" />
              <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>Minha Biblioteca</span>
            </button>
+
+           {/* Export & Session Buttons */}
+           {!sidebarCollapsed && history.some(i => i.status === 'done') && (
+             <div className="grid grid-cols-2 gap-2">
+               <button
+                 onClick={() => void handleExportPdf()}
+                 className="py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                 title="Exportar PDF"
+               >
+                 <DocumentArrowDownIcon className="w-4 h-4" /> PDF
+               </button>
+               <button
+                 onClick={() => void handleExportZip()}
+                 className="py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                 title="Exportar ZIP"
+               >
+                 <ArchiveBoxIcon className="w-4 h-4" /> ZIP
+               </button>
+             </div>
+           )}
+           {!sidebarCollapsed && (
+             <button
+               onClick={() => void handleClearSession()}
+               className="w-full py-2 text-xs font-medium bg-slate-800/60 hover:bg-red-900/30 border border-slate-700 hover:border-red-500/30 text-slate-400 hover:text-red-300 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+               title="Limpar Sessao"
+             >
+               <TrashIcon className="w-4 h-4" /> Limpar Sessao
+             </button>
+           )}
            
            {/* Settings Buttons Grid */}
            <div className={`grid gap-2 ${sidebarCollapsed ? 'md:grid-cols-1' : 'grid-cols-8'}`}>
@@ -870,6 +1076,17 @@ const App: React.FC = () => {
 
       {/* Onboarding Modal */}
       <OnboardingModal forceOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
+
+      {/* Bubble Search (Ctrl+F) */}
+      {showBubbleSearch && (
+        <BubbleSearch
+          onClose={() => setShowBubbleSearch(false)}
+          onNavigate={(imageId) => {
+            const target = history.find(h => h.id === imageId);
+            if (target) setCurrentImageInStore(target);
+          }}
+        />
+      )}
 
     </div>
   );
