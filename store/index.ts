@@ -24,4 +24,7 @@ export type { Toast, ToastType, ToastState } from './useToastStore';
 export { useGlossaryStore } from './useGlossaryStore';
 export type { GlossaryEntry, GlossaryState } from './useGlossaryStore';
 
+export { useViewStore } from './useViewStore';
+export type { ViewState } from './useViewStore';
+
 export { migrateLegacyLocalStorage } from './migrations';
