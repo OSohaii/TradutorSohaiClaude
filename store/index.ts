@@ -21,4 +21,7 @@ export type { LibraryStoreState } from './useLibraryStore';
 export { useToastStore } from './useToastStore';
 export type { Toast, ToastType, ToastState } from './useToastStore';
 
+export { useViewStore } from './useViewStore';
+export type { ViewState } from './useViewStore';
+
 export { migrateLegacyLocalStorage } from './migrations';
