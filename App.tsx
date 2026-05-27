@@ -13,6 +13,7 @@ import DeepLSettingsModal from './features/settings/DeepLSettingsModal';
 import GeminiSettingsModal from './features/settings/GeminiSettingsModal';
 import OpenAISettingsModal from './features/settings/OpenAISettingsModal';
 import FontManagerModal from './features/settings/FontManagerModal';
+import SettingsPanel from './features/settings/SettingsPanel';
 import {
   useAuthStore,
   useTranslatorStore,
@@ -49,6 +50,10 @@ import {
   EyeIcon,
   CheckIcon,
   XCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  Cog6ToothIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -99,6 +104,9 @@ const App: React.FC = () => {
   const autoTranslate = useTranslatorStore(s => s.autoTranslate);
   const setAutoTranslate = useTranslatorStore(s => s.setAutoTranslate);
 
+  const sidebarCollapsed = useTranslatorStore(s => s.sidebarCollapsed);
+  const setSidebarCollapsed = useTranslatorStore(s => s.setSidebarCollapsed);
+
   // Seed the font default on first run.
   useEffect(() => {
     if (!targetFont) setTargetFont(DEFAULT_FONT_VALUE);
@@ -133,6 +141,13 @@ const App: React.FC = () => {
   const [showOpenAISettings, setShowOpenAISettings] = useState(false);
   const [showFontSettings, setShowFontSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+
+  // Drag & Drop state
+  const [isDragOverWindow, setIsDragOverWindow] = useState(false);
+  const dragCounter = useRef(0);
+
+  // Unified settings panel
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   // --- Translation pipeline hook ---
   const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => {
@@ -173,6 +188,41 @@ const App: React.FC = () => {
     }
     // Reset trigger flag after a short delay so click events don't fire immediately if it was a long press
     setTimeout(() => setLongPressTriggered(false), 100);
+  };
+
+  // --- Global Drag & Drop Handlers ---
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      dragCounter.current++;
+      setIsDragOverWindow(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setIsDragOverWindow(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragOverWindow(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      void handleFilesSelect(Array.from(e.dataTransfer.files));
+    }
   };
 
   // Merge fonts for the selector (used by font <select> in sidebar)
@@ -232,8 +282,23 @@ const App: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       
+      {/* --- Global Drag & Drop Overlay --- */}
+      {isDragOverWindow && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center">
+          <div className="border-2 border-dashed border-indigo-400 rounded-2xl p-12 flex flex-col items-center gap-4 animate-drag-pulse">
+            <ArrowUpTrayIcon className="w-16 h-16 text-indigo-400" />
+            <p className="text-xl font-bold text-white">Solte aqui para traduzir</p>
+            <p className="text-sm text-slate-400">Arraste imagens de manga para iniciar</p>
+          </div>
+        </div>
+      )}
+
       {/* --- Mobile Sidebar Overlay --- */}
       {isSidebarOpen && (
         <div 
@@ -244,16 +309,16 @@ const App: React.FC = () => {
 
       {/* --- Sidebar (Drawer on Mobile, Fixed on Desktop) --- */}
       <aside className={`
-        fixed md:relative z-50 h-full w-[85vw] md:w-80 bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col transition-transform duration-300 ease-in-out
+        fixed md:relative z-50 h-full w-[85vw] ${sidebarCollapsed ? 'md:w-16' : 'md:w-80'} bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* Sidebar Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-           <div className="flex items-center gap-3">
+           <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'md:justify-center md:w-full' : ''}`}>
              <div className="bg-gradient-to-tr from-indigo-600 to-violet-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
                <BookOpenIcon className="w-5 h-5 text-white" />
              </div>
-             <div>
+             <div className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>
                <h1 className="font-bold text-lg leading-none tracking-tight">MangaLens</h1>
                <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[10px] text-slate-400 font-medium">AI Translator</span>
@@ -271,21 +336,31 @@ const App: React.FC = () => {
                </div>
              </div>
            </div>
-           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1 text-slate-400">
-             <XMarkIcon className="w-6 h-6" />
-           </button>
+           <div className="flex items-center gap-1">
+             {/* Collapse toggle (desktop only) */}
+             <button
+               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+               className="hidden md:flex p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+               title={sidebarCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
+             >
+               {sidebarCollapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
+             </button>
+             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1 text-slate-400">
+               <XMarkIcon className="w-6 h-6" />
+             </button>
+           </div>
         </div>
         
         {/* History List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
            {history.length === 0 ? (
-             <div className="flex flex-col items-center justify-center h-40 text-slate-600 space-y-2">
+             <div className={`flex flex-col items-center justify-center h-40 text-slate-600 space-y-2 ${sidebarCollapsed ? 'md:px-1' : ''}`}>
                <DocumentDuplicateIcon className="w-8 h-8 opacity-50" />
-               <span className="text-xs">Sem histórico recente</span>
+               <span className={`text-xs ${sidebarCollapsed ? 'md:hidden' : ''}`}>Sem historico recente</span>
              </div>
            ) : (
              <>
-               {history.some(item => item.status === 'idle') && (
+               {history.some(item => item.status === 'idle') && !sidebarCollapsed && (
                  <button
                    onClick={() => void handleTranslateAll()}
                    className="w-full py-2 mb-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors"
@@ -299,13 +374,14 @@ const App: React.FC = () => {
                  key={item.id}
                  onClick={() => { setCurrentImageInStore(item); setIsSidebarOpen(false); }}
                  className={`
-                   group flex items-center p-2 rounded-xl cursor-pointer transition-all border
+                   group flex items-center ${sidebarCollapsed ? 'md:justify-center md:p-1' : 'p-2'} rounded-xl cursor-pointer transition-all border
                    ${currentImage?.id === item.id 
                      ? 'bg-indigo-600/10 border-indigo-500/50 shadow-sm' 
                      : 'bg-slate-800/50 border-transparent hover:bg-slate-800 hover:border-slate-700'}
+                   ${item.status === 'error' ? 'animate-shake' : ''}
                  `}
                >
-                 <div className="relative h-10 w-10 rounded-lg bg-slate-950 overflow-hidden flex-shrink-0 border border-slate-800">
+                 <div className={`relative h-10 w-10 rounded-lg bg-slate-950 overflow-hidden flex-shrink-0 border border-slate-800 ${item.status === 'processing' ? 'ring-2 ring-indigo-500 animate-pulse' : ''}`}>
                    <img src={item.imageUrl} className="h-full w-full object-cover" loading="lazy" />
                    {item.status === 'processing' && (
                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -327,16 +403,33 @@ const App: React.FC = () => {
                         <ExclamationTriangleIcon className="w-4 h-4 text-red-200" />
                       </div>
                    )}
+                   {/* Done checkmark badge */}
+                   {item.status === 'done' && (
+                     <div className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full p-0.5 animate-scale-in">
+                       <CheckIcon className="w-2.5 h-2.5 text-white" />
+                     </div>
+                   )}
                  </div>
-                 <div className="ml-3 flex-1 min-w-0">
+                 <div className={`ml-3 flex-1 min-w-0 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
                    <div className="flex justify-between items-center">
-                     <p className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">{item.fileName}</p>
+                     <div className="flex items-center gap-1.5">
+                       {/* Status dot indicator */}
+                       <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                         item.status === 'done' ? 'bg-green-500' :
+                         item.status === 'processing' ? 'bg-blue-500' :
+                         item.status === 'error' ? 'bg-red-500' :
+                         item.status === 'ocr-done' ? 'bg-orange-500' :
+                         'bg-slate-500'
+                       }`} />
+                       <p className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">{item.fileName}</p>
+                     </div>
                      <span className="text-[9px] text-slate-500">#{idx + 1}</span>
                    </div>
                    <p className={`text-[10px] truncate ${item.status === 'error' ? 'text-red-400' : item.status === 'idle' ? 'text-indigo-400' : item.status === 'ocr-done' ? 'text-amber-400' : 'text-slate-500'}`}>
                      {item.status === 'processing' ? 'Traduzindo...' : item.status === 'done' ? 'Concluido' : item.status === 'idle' ? 'Pendente' : item.status === 'ocr-done' ? 'OCR Pronto' : 'Falha'}
                    </p>
                  </div>
+                 <div className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>
                  {item.status === 'idle' && (
                    <button
                      onClick={(e) => { e.stopPropagation(); void handleTranslateImage(item.id); }}
@@ -379,6 +472,7 @@ const App: React.FC = () => {
                  >
                    <TrashIcon className="w-4 h-4" />
                  </button>
+                 </div>
                </div>
              ))}
              </>
@@ -386,9 +480,9 @@ const App: React.FC = () => {
         </div>
 
         {/* Sidebar Footer Controls */}
-        <div className="p-4 bg-slate-900 border-t border-slate-800 space-y-4">
+        <div className={`p-4 bg-slate-900 border-t border-slate-800 space-y-4 ${sidebarCollapsed ? 'md:p-2 md:space-y-2' : ''}`}>
            {/* OCR & Translation Selectors */}
-           <div className="space-y-3">
+           <div className={`space-y-3 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 flex items-center gap-1.5"><ViewfinderCircleIcon className="w-3.5 h-3.5"/> OCR</span>
                 <select value={ocrEngine} onChange={(e) => setOcrEngine(e.target.value as EngineId)} className="bg-slate-800 border-none text-slate-200 text-xs rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate">
@@ -567,20 +661,22 @@ const App: React.FC = () => {
            {/* Library Button */}
            <button 
              onClick={() => setShowLibrary(true)}
-             className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
+             className={`w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20 ${sidebarCollapsed ? 'md:p-2' : ''}`}
+             title="Minha Biblioteca"
            >
              <BookmarkSquareIcon className="w-5 h-5" />
-             Minha Biblioteca
+             <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>Minha Biblioteca</span>
            </button>
            
            {/* Settings Buttons Grid */}
-           <div className="grid grid-cols-6 gap-2">
+           <div className={`grid gap-2 ${sidebarCollapsed ? 'md:grid-cols-1' : 'grid-cols-7'}`}>
               <button onClick={() => setShowIchigoSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${ichigoToken ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Ichigo"><UserCircleIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowToriiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${toriiApiKey ? 'bg-pink-500/10 border-pink-500/30 text-pink-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Torii"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowDeepLSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${deepLKey ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="DeepL"><LanguageIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowGeminiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${geminiApiKey ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Google Gemini Key (BYOK)"><CommandLineIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowOpenAISettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${openaiApiKey ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="OpenAI Key (BYOK)"><SparklesIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowFontSettings(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700" title="Gerenciar Fontes"><DocumentPlusIcon className="w-5 h-5"/></button>
+              <button onClick={() => setShowSettingsPanel(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-indigo-400" title="Configuracoes"><Cog6ToothIcon className="w-5 h-5"/></button>
            </div>
         </div>
       </aside>
@@ -718,6 +814,7 @@ const App: React.FC = () => {
       <DeepLSettingsModal isOpen={showDeepLSettings} onClose={() => setShowDeepLSettings(false)} />
       <GeminiSettingsModal isOpen={showGeminiSettings} onClose={() => setShowGeminiSettings(false)} />
       <OpenAISettingsModal isOpen={showOpenAISettings} onClose={() => setShowOpenAISettings(false)} />
+      <SettingsPanel isOpen={showSettingsPanel} onClose={() => setShowSettingsPanel(false)} />
 
       {/* Library Manager */}
       <LibraryManager
