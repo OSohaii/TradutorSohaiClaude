@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
 import ViewerToolbar from './ViewerToolbar';
+import ComparisonSlider from './ComparisonSlider';
 import { useSessionStore } from '../store';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { downloadCanvas } from '../features/viewer/downloadCanvas';
@@ -21,6 +22,7 @@ import {
   ArrowDownTrayIcon,
   ExclamationTriangleIcon,
   ChatBubbleLeftRightIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 
 interface MangaViewerProps {
@@ -108,6 +110,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [isAddingBubble, setIsAddingBubble] = useState(false);
   const [newBubbleStart, setNewBubbleStart] = useState<{x: number, y: number} | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
   
   const [hideBubbleBorders, setHideBubbleBorders] = useState(true);
   const [isBubbleTransparent, setIsBubbleTransparent] = useState(false);
@@ -431,6 +434,11 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                 <button onClick={handleDownload} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Baixar Página Traduzida">
                   <ArrowDownTrayIcon className="w-5 h-5" />
                 </button>
+                {image.status === 'done' && (
+                  <button onClick={() => setShowComparison(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Comparar Original/Traduzido">
+                    <ArrowsRightLeftIcon className="w-5 h-5" />
+                  </button>
+                )}
                 <div className="h-6 w-px bg-slate-700 mx-1"></div>
                 <button onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${isPaintMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Pintar (Whiteout)">
                   <PaintBrushIcon className="w-5 h-5" />
@@ -455,6 +463,13 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                   </button>
                 </div>
               </>
+            )}
+
+            {/* Comparison button for full server results (no overlays) */}
+            {image.status === 'done' && isFullServerResult && (
+              <button onClick={() => setShowComparison(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Comparar Original/Traduzido">
+                <ArrowsRightLeftIcon className="w-5 h-5" />
+              </button>
             )}
             
             <div className="h-6 w-px bg-slate-600 mx-1 hidden sm:block"></div>
@@ -634,6 +649,20 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           onBubbleUpdate={onBubbleUpdate}
           onBubbleDelete={onBubbleDelete}
           startEditingBubble={startEditingBubble}
+        />
+      )}
+
+      {/* Comparison Slider Overlay */}
+      {showComparison && image.status === 'done' && (
+        <ComparisonSlider
+          originalImageUrl={image.imageUrl}
+          translatedImageUrl={image.translatedImageUrl}
+          image={image}
+          onClose={() => setShowComparison(false)}
+          defaultFont={defaultFont}
+          globalBold={globalBold}
+          globalItalic={globalItalic}
+          globalBubbleScale={globalBubbleScale}
         />
       )}
     </div>
