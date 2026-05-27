@@ -60,6 +60,7 @@ import {
   Cog6ToothIcon,
   ArrowUpTrayIcon,
   QuestionMarkCircleIcon,
+  PaintBrushIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -106,6 +107,10 @@ const App: React.FC = () => {
 
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
   const setUseToriiForCleaning = useTranslatorStore(s => s.setUseToriiForCleaning);
+
+  const inpaintEnabled = useTranslatorStore(s => s.inpaintEnabled);
+  const setInpaintEnabled = useTranslatorStore(s => s.setInpaintEnabled);
+  const lamaCleanerUrl = useTranslatorStore(s => s.lamaCleanerUrl);
 
   const autoTranslate = useTranslatorStore(s => s.autoTranslate);
   const setAutoTranslate = useTranslatorStore(s => s.setAutoTranslate);
@@ -691,9 +696,38 @@ const App: React.FC = () => {
                      onChange={() => {
                         setUseToriiForCleaning(!useToriiForCleaning);
                         if (!useToriiForCleaning && !toriiApiKey) setShowToriiSettings(true);
+                        // Mutual exclusion: disable inpaint when enabling Torii
+                        if (!useToriiForCleaning) setInpaintEnabled(false);
                      }} 
                      colorClass="bg-pink-600"
                    />
+                 </div>
+              )}
+
+              {/* Lama Cleaner Inpainting Toggle */}
+              {ocrEngine !== 'TORII' && transEngine !== 'TORII' && (
+                 <div className="pt-2 border-t border-slate-800 space-y-1">
+                   <Toggle 
+                     label={
+                        <span className="flex items-center gap-1.5" title="Inpaint via Lama Cleaner (remove texto usando IA)">
+                           <PaintBrushIcon className={`w-3.5 h-3.5 ${inpaintEnabled ? 'text-amber-400' : 'text-slate-500'}`} />
+                           Inpaint (Lama)
+                        </span>
+                     } 
+                     checked={inpaintEnabled} 
+                     onChange={() => {
+                        const newVal = !inpaintEnabled;
+                        setInpaintEnabled(newVal);
+                        // Mutual exclusion: disable Torii cleaner when enabling inpaint
+                        if (newVal) setUseToriiForCleaning(false);
+                     }} 
+                     colorClass="bg-amber-600"
+                   />
+                   {inpaintEnabled && (
+                     <p className="text-[9px] text-slate-500 pl-5 truncate" title={lamaCleanerUrl}>
+                       {lamaCleanerUrl}
+                     </p>
+                   )}
                  </div>
               )}
 

@@ -62,6 +62,10 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
   const setToriiInpaintOnly = useTranslatorStore(s => s.setToriiInpaintOnly);
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
   const setUseToriiForCleaning = useTranslatorStore(s => s.setUseToriiForCleaning);
+  const inpaintEnabled = useTranslatorStore(s => s.inpaintEnabled);
+  const setInpaintEnabled = useTranslatorStore(s => s.setInpaintEnabled);
+  const lamaCleanerUrl = useTranslatorStore(s => s.lamaCleanerUrl);
+  const setLamaCleanerUrl = useTranslatorStore(s => s.setLamaCleanerUrl);
   const autoTranslate = useTranslatorStore(s => s.autoTranslate);
   const setAutoTranslate = useTranslatorStore(s => s.setAutoTranslate);
 
@@ -442,9 +446,47 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
                     </span>
                   }
                   checked={useToriiForCleaning}
-                  onChange={() => setUseToriiForCleaning(!useToriiForCleaning)}
+                  onChange={() => {
+                    setUseToriiForCleaning(!useToriiForCleaning);
+                    if (!useToriiForCleaning) setInpaintEnabled(false);
+                  }}
                   colorClass="bg-pink-600"
                 />
+              </div>
+
+              {/* Lama Cleaner Inpainting */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 space-y-4">
+                <h4 className="text-sm font-bold text-white">Inpainting (Lama Cleaner)</h4>
+                <p className="text-[10px] text-slate-400">
+                  Remove texto da imagem usando IA via um servidor Lama Cleaner local ou remoto.
+                </p>
+                <Toggle
+                  label={
+                    <span className="flex items-center gap-1.5">
+                      <AdjustmentsHorizontalIcon className={`w-3.5 h-3.5 ${inpaintEnabled ? 'text-amber-400' : 'text-slate-500'}`} />
+                      Ativar Inpaint (Lama)
+                    </span>
+                  }
+                  checked={inpaintEnabled}
+                  onChange={() => {
+                    const newVal = !inpaintEnabled;
+                    setInpaintEnabled(newVal);
+                    if (newVal) setUseToriiForCleaning(false);
+                  }}
+                  colorClass="bg-amber-600"
+                />
+                {inpaintEnabled && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-400">URL do Lama Cleaner</label>
+                    <input
+                      type="text"
+                      placeholder="http://localhost:8080"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      value={lamaCleanerUrl}
+                      onChange={e => setLamaCleanerUrl(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

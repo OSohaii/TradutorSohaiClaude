@@ -53,6 +53,8 @@ export const useTranslatePipeline = (
   const transEngine = useTranslatorStore(s => s.transEngine);
   const ichigoModel = useTranslatorStore(s => s.ichigoModel);
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
+  const inpaintEnabled = useTranslatorStore(s => s.inpaintEnabled);
+  const lamaCleanerUrl = useTranslatorStore(s => s.lamaCleanerUrl);
   const autoTranslate = useTranslatorStore(s => s.autoTranslate);
   const sourceLanguage = useTranslatorStore(s => s.sourceLanguage);
   const targetLanguage = useTranslatorStore(s => s.targetLanguage);
@@ -96,13 +98,15 @@ export const useTranslatePipeline = (
     custom: customOpenaiApiKey || undefined,
     customBaseUrl: customOpenaiBaseUrl || undefined,
     customModel: customOpenaiModel || undefined,
+    lamaUrl: (inpaintEnabled && lamaCleanerUrl) ? lamaCleanerUrl : undefined,
   });
 
   const runPipeline = async (
     base64: string,
   ): Promise<{ bubbles: TextBubble[]; translatedImageUrl?: string }> => {
     const usingTorii = ocrEngine === 'TORII' || transEngine === 'TORII';
-    const wantsCleaner = useToriiForCleaning && !usingTorii;
+    const wantsCleaner = useToriiForCleaning && !usingTorii && !inpaintEnabled;
+    const wantsInpaint = inpaintEnabled && !usingTorii;
 
     const plan = planPipeline(ocrEngine, transEngine, { useToriiForCleaning: wantsCleaner });
     // Plan is used for debugging; future UI will display it.
@@ -116,6 +120,7 @@ export const useTranslatePipeline = (
           ocr: { engine: ocrEngine },
           translation: { engine: transEngine },
           cleaner: { enabled: wantsCleaner, engine: 'TORII' },
+          inpaint: { enabled: wantsInpaint, lamaUrl: lamaCleanerUrl || undefined },
           options: {
             targetLanguage,
             targetLangCode,
@@ -135,6 +140,7 @@ export const useTranslatePipeline = (
             ocr: { engine: ocrEngine },
             translation: { engine: transEngine },
             cleaner: { enabled: false },
+            inpaint: { enabled: wantsInpaint, lamaUrl: lamaCleanerUrl || undefined },
             options: {
               targetLanguage,
               targetLangCode,

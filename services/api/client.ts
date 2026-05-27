@@ -23,6 +23,7 @@ export interface ByokKeys {
   custom?: string;
   customBaseUrl?: string;
   customModel?: string;
+  lamaUrl?: string;
 }
 
 export type ApiErrorCode =
@@ -94,6 +95,7 @@ function byokHeaders(byok?: ByokKeys): Record<string, string> {
   if (byok.custom) headers['X-Byok-Custom'] = byok.custom;
   if (byok.customBaseUrl) headers['X-Custom-Base-Url'] = byok.customBaseUrl;
   if (byok.customModel) headers['X-Custom-Model'] = byok.customModel;
+  if (byok.lamaUrl) headers['X-Lama-Url'] = byok.lamaUrl;
   return headers;
 }
 

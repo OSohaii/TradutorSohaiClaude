@@ -30,6 +30,7 @@ class Byok:
     custom_openai: str | None = None
     custom_base_url: str | None = None
     custom_model: str | None = None
+    lama_url: str | None = None
 
 
 async def get_byok(
@@ -44,6 +45,7 @@ async def get_byok(
     x_byok_custom: Annotated[str | None, Header()] = None,
     x_custom_base_url: Annotated[str | None, Header()] = None,
     x_custom_model: Annotated[str | None, Header()] = None,
+    x_lama_url: Annotated[str | None, Header()] = None,
 ) -> Byok:
     return Byok(
         gemini=_clean(x_byok_gemini),
@@ -57,6 +59,7 @@ async def get_byok(
         custom_openai=_clean(x_byok_custom),
         custom_base_url=_clean(x_custom_base_url),
         custom_model=_clean(x_custom_model),
+        lama_url=_clean(x_lama_url),
     )
 
 
@@ -148,6 +151,10 @@ class KeyResolver:
             engine="custom_openai",
             hint="X-Custom-Model header or CUSTOM_OPENAI_MODEL env var",
         )
+
+    def lama_url(self) -> str | None:
+        """Optional Lama Cleaner URL from X-Lama-Url header."""
+        return self._byok.lama_url or None
 
     @staticmethod
     def _require(value: str | None, *, engine: str, hint: str) -> str:

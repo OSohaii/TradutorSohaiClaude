@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import logging
 from dataclasses import dataclass
 
@@ -27,6 +28,7 @@ from ..providers import torii as torii_provider
 from ..providers import claude as claude_provider
 from ..providers import deepseek as deepseek_provider
 from ..providers import custom_openai as custom_openai_provider
+from ..providers import lama_cleaner as lama_cleaner_provider
 from ..schemas.common import EngineId, TextBubble, TokenUsage
 from ..schemas.pipeline import PipelineRequest, PipelineResponse
 
@@ -354,6 +356,32 @@ async def _run_translation_step(
     )
 
 
+# --- Mask generation for Lama Cleaner ----------------------------------------
+
+
+def _generate_mask(image_bytes: bytes, bubbles: list[TextBubble]) -> bytes:
+    """Generate a binary mask from bubble bounding boxes.
+
+    The mask is a grayscale PNG: black (0) = preserve, white (255) = inpaint.
+    Bounding box coordinates are in 0-1000 scale and converted to pixel coords.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.open(io.BytesIO(image_bytes))
+    width, height = img.size
+    mask = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    for bubble in bubbles:
+        x1 = int(bubble.box.xmin * width / 1000)
+        y1 = int(bubble.box.ymin * height / 1000)
+        x2 = int(bubble.box.xmax * width / 1000)
+        y2 = int(bubble.box.ymax * height / 1000)
+        draw.rectangle([x1, y1, x2, y2], fill=255)
+    buf = io.BytesIO()
+    mask.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 # --- Public entrypoint -------------------------------------------------------
 
 
@@ -433,6 +461,23 @@ async def run_pipeline(
             warnings.append(f"Cleaner Torii falhou: {cleaner_result}")
         else:
             cleaned_image_b64 = base64.b64encode(cleaner_result).decode("ascii")
+
+    # Step 1b: Lama Cleaner inpainting (runs after OCR because it needs bboxes).
+    # Preferred over Torii cleaner when both are enabled.
+    if req.inpaint.enabled and bubbles and not plan.use_torii_full:
+        try:
+            mask_bytes = _generate_mask(image_bytes, bubbles)
+            lama_url = req.inpaint.lama_url or "http://localhost:8080"
+            # Override with BYOK header if provided
+            if keys.lama_url():
+                lama_url = keys.lama_url()
+            cleaned_bytes = await lama_cleaner_provider.inpaint(
+                image_bytes, mask_bytes, lama_url=lama_url
+            )
+            cleaned_image_b64 = base64.b64encode(cleaned_bytes).decode("ascii")
+        except Exception as exc:
+            logger.warning("Lama Cleaner inpaint failed (non-fatal): %s", exc)
+            warnings.append(f"Inpaint (Lama) falhou: {exc}")
 
     # Step 2: Standalone translation pass when the OCR engine didn't already
     # translate (e.g. GEMINI_PRO -> DEEPL, or GEMINI_PRO_FULL -> X disabled).

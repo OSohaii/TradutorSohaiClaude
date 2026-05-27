@@ -20,12 +20,24 @@ class CleanerConfig(CamelModel):
     """Optional second pass that produces a text-free version of the page.
 
     Only Torii currently supports inpaint-only mode. The cleaner runs in
-    parallel with OCR and a failure here never aborts the OCR result — it is
+    parallel with OCR and a failure here never aborts the OCR result -- it is
     surfaced as a warning.
     """
 
     enabled: bool = False
     engine: EngineId = EngineId.TORII
+
+
+class InpaintConfig(CamelModel):
+    """Configuration for Lama Cleaner inpainting.
+
+    When enabled, the pipeline generates a mask from OCR bounding boxes and
+    sends it along with the original image to a Lama Cleaner endpoint for
+    text removal.
+    """
+
+    enabled: bool = False
+    lama_url: str = "http://localhost:8080"
 
 
 class PipelineOptions(CamelModel):
@@ -40,6 +52,7 @@ class PipelineRequest(CamelModel):
     ocr: OcrConfig
     translation: TranslationConfig
     cleaner: CleanerConfig = CleanerConfig()
+    inpaint: InpaintConfig = InpaintConfig()
     options: PipelineOptions = PipelineOptions()
     phase: Literal['full', 'ocr-only', 'translate-only'] = 'full'
     bubbles: list[TextBubble] = []
