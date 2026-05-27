@@ -1,0 +1,7 @@
+{
+  "task_id": "task-studio-fix-issues",
+  "task_description": "Fix all issues with the Studio redesign: duplicate toolbar, ignored props, disabled RightPanel tools, non-functional opacity slider, visual inconsistency, and zoom controls placement.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

@@ -1,0 +1,24 @@
+{
+  "project_type": "React SPA - Manga translation tool with multi-panel studio layout",
+  "language": "TypeScript + React 19",
+  "build_system": "Vite with npm scripts",
+  "test_framework": "Vitest with @testing-library/react, tests in tests/unit/",
+  "build_command": "npm run typecheck && npm run build",
+  "test_command": "npm run test",
+  "verification_instructions": "1. Run npm run typecheck to validate type safety. 2. Run npm run test to run all 25 unit tests. 3. Run npm run build to verify production build succeeds.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "cd /projects/sandbox/TradutorSohaiClaude && npm install",
+  "environment_constraints": "OPEN_INTERNET - full network access available",
+  "contribution_requirements": "All existing tests must pass. Build must pass. Do not break MangaViewer when used outside Studio (ReaderPage uses it in strip mode). StudioPageProps interface in App.tsx must remain compatible.",
+  "key_patterns": "Zustand stores in store/ directory. Components use framer-motion for animations. @heroicons/react for icons. TailwindCSS utility classes. Studio layout uses panel visibility state in useStudioStore.",
+  "relevant_files": [
+    "components/MangaViewer.tsx",
+    "components/studio/CentralCanvas.tsx",
+    "components/studio/StudioToolbar.tsx",
+    "components/studio/RightPanel.tsx",
+    "store/useStudioStore.ts",
+    "pages/StudioPage.tsx",
+    "App.tsx"
+  ],
+  "directory_structure": "Root has App.tsx, pages/ (StudioPage, LibraryPage, ReaderPage), components/ (MangaViewer + studio/ subfolder), store/ (zustand stores), features/ (hooks and business logic), tests/unit/ (vitest tests)"
+}

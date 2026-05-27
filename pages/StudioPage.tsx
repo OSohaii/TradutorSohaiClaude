@@ -25,11 +25,11 @@ interface StudioPageProps {
 
 const StudioPage: React.FC<StudioPageProps> = ({
   onOpenSettings,
-  onOpenIchigo: _onOpenIchigo,
-  onOpenTorii: _onOpenTorii,
-  onOpenDeepL: _onOpenDeepL,
-  onOpenGemini: _onOpenGemini,
-  onOpenOpenAI: _onOpenOpenAI,
+  onOpenIchigo,
+  onOpenTorii,
+  onOpenDeepL,
+  onOpenGemini,
+  onOpenOpenAI,
   onOpenFonts,
   onRetranslate,
   onTranslateImage,

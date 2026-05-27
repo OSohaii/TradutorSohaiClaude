@@ -114,6 +114,8 @@ const CentralCanvas: React.FC<CentralCanvasProps> = ({
             customFonts={customFonts}
             totalPages={history.length}
             currentPageIndex={currentIndex}
+            hideInternalToolbar={true}
+            embedded={true}
           />
         )}
       </div>

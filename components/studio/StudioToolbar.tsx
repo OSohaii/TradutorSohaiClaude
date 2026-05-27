@@ -8,8 +8,13 @@ import {
   Square3Stack3DIcon,
   ChevronRightIcon,
   ArrowPathIcon,
+  MagnifyingGlassPlusIcon,
+  MagnifyingGlassMinusIcon,
+  PencilSquareIcon,
+  PaintBrushIcon,
 } from '@heroicons/react/24/outline';
 import { ProcessedImage } from '../../types';
+import { useStudioStore } from '../../store/useStudioStore';
 
 interface StudioToolbarProps {
   currentImage: ProcessedImage | null;
@@ -40,6 +45,13 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
   rightPanelOpen,
   hasDonePages,
 }) => {
+  const zoom = useStudioStore(s => s.zoom);
+  const setZoom = useStudioStore(s => s.setZoom);
+  const isEditingMode = useStudioStore(s => s.isEditingMode);
+  const setIsEditingMode = useStudioStore(s => s.setIsEditingMode);
+  const isPaintMode = useStudioStore(s => s.isPaintMode);
+  const setIsPaintMode = useStudioStore(s => s.setIsPaintMode);
+
   return (
     <header className="h-11 flex items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0f]/90 backdrop-blur-xl flex-shrink-0">
       {/* Left: Back + Breadcrumb */}
@@ -68,6 +80,63 @@ const StudioToolbar: React.FC<StudioToolbarProps> = ({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1.5">
+        {/* Zoom Controls */}
+        <div className="hidden md:flex items-center gap-0.5">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+            title="Zoom out"
+          >
+            <MagnifyingGlassMinusIcon className="w-3.5 h-3.5" />
+          </motion.button>
+          <span className="text-[10px] font-mono text-slate-400 min-w-[36px] text-center">
+            {Math.round(zoom * 100)}%
+          </span>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setZoom(z => Math.min(4, z + 0.25))}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+            title="Zoom in"
+          >
+            <MagnifyingGlassPlusIcon className="w-3.5 h-3.5" />
+          </motion.button>
+        </div>
+
+        {/* Mode Toggles */}
+        <div className="hidden md:flex items-center gap-0.5 ml-1">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => { setIsEditingMode(!isEditingMode); setIsPaintMode(false); }}
+            className={`p-1.5 rounded-lg transition-all ${
+              isEditingMode
+                ? 'bg-purple-500/15 text-purple-400'
+                : 'hover:bg-white/5 text-slate-400 hover:text-white'
+            }`}
+            title="Modo Edicao"
+          >
+            <PencilSquareIcon className="w-3.5 h-3.5" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); }}
+            className={`p-1.5 rounded-lg transition-all ${
+              isPaintMode
+                ? 'bg-purple-500/15 text-purple-400'
+                : 'hover:bg-white/5 text-slate-400 hover:text-white'
+            }`}
+            title="Modo Pintura"
+          >
+            <PaintBrushIcon className="w-3.5 h-3.5" />
+          </motion.button>
+        </div>
+
+        <div className="hidden md:block w-px h-5 bg-white/5 mx-1" />
+
         {/* Retranslate All */}
         <motion.button
           whileHover={{ scale: 1.05 }}

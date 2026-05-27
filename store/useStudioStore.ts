@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 export type RightPanelTab = 'editor' | 'layers' | 'history';
+export type StudioTool = 'select' | 'text' | 'move' | 'brush' | 'eraser' | 'eyedropper';
 
 export interface StudioState {
   /** Whether the left sidebar (icon rail) is visible */
@@ -13,6 +14,14 @@ export interface StudioState {
   activeRightTab: RightPanelTab;
   /** Currently selected layer/bubble ID */
   selectedLayerId: string | null;
+  /** Currently active tool */
+  activeTool: StudioTool;
+  /** Zoom level (1 = 100%) */
+  zoom: number;
+  /** Whether editing mode is active */
+  isEditingMode: boolean;
+  /** Whether paint mode is active */
+  isPaintMode: boolean;
 
   // Actions
   toggleLeftSidebar: () => void;
@@ -23,6 +32,10 @@ export interface StudioState {
   setLeftSidebarOpen: (open: boolean) => void;
   setPagesPanelOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
+  setActiveTool: (tool: StudioTool) => void;
+  setZoom: (zoom: number | ((prev: number) => number)) => void;
+  setIsEditingMode: (editing: boolean) => void;
+  setIsPaintMode: (painting: boolean) => void;
 }
 
 export const useStudioStore = create<StudioState>((set) => ({
@@ -31,6 +44,10 @@ export const useStudioStore = create<StudioState>((set) => ({
   rightPanelOpen: true,
   activeRightTab: 'editor',
   selectedLayerId: null,
+  activeTool: 'select',
+  zoom: 1,
+  isEditingMode: false,
+  isPaintMode: false,
 
   toggleLeftSidebar: () => set(s => ({ leftSidebarOpen: !s.leftSidebarOpen })),
   togglePagesPanel: () => set(s => ({ pagesPanelOpen: !s.pagesPanelOpen })),
@@ -40,4 +57,8 @@ export const useStudioStore = create<StudioState>((set) => ({
   setLeftSidebarOpen: (open) => set({ leftSidebarOpen: open }),
   setPagesPanelOpen: (open) => set({ pagesPanelOpen: open }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
+  setZoom: (zoom) => set(s => ({ zoom: typeof zoom === 'function' ? zoom(s.zoom) : zoom })),
+  setIsEditingMode: (editing) => set({ isEditingMode: editing }),
+  setIsPaintMode: (painting) => set({ isPaintMode: painting }),
 }));

@@ -6,6 +6,7 @@ import ViewerToolbar from './ViewerToolbar';
 import ComparisonSlider from './ComparisonSlider';
 import ShortcutsOverlay from './ui/ShortcutsOverlay';
 import { useSessionStore } from '../store';
+import { useStudioStore } from '../store/useStudioStore';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { useSwipeNavigation } from '../features/viewer/useSwipeNavigation';
 import { usePinchZoom } from '../features/viewer/usePinchZoom';
@@ -52,6 +53,8 @@ interface MangaViewerProps {
   totalPages?: number;
   currentPageIndex?: number;
   costLabel?: string;
+  hideInternalToolbar?: boolean;
+  embedded?: boolean;
 }
 
 export type FontOption = { name: string; value: string; type?: 'font' };
@@ -115,6 +118,8 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   totalPages = 1,
   currentPageIndex = 0,
   costLabel,
+  hideInternalToolbar = false,
+  embedded = false,
 }) => {
   const [zoom, setZoom] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.TRANSLATED);
@@ -131,6 +136,21 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [isPaintMode, setIsPaintMode] = useState(false);
   const [brushSize, setBrushSize] = useState(20);
   const [paintColor, setPaintColor] = useState('#FFFFFF');
+
+  // When embedded, use studio store for zoom/editing/paint state
+  const storeZoom = useStudioStore(s => s.zoom);
+  const storeSetZoom = useStudioStore(s => s.setZoom);
+  const storeIsEditingMode = useStudioStore(s => s.isEditingMode);
+  const storeSetIsEditingMode = useStudioStore(s => s.setIsEditingMode);
+  const storeIsPaintMode = useStudioStore(s => s.isPaintMode);
+  const storeSetIsPaintMode = useStudioStore(s => s.setIsPaintMode);
+
+  const effectiveZoom = embedded ? storeZoom : zoom;
+  const effectiveSetZoom = embedded ? storeSetZoom : setZoom;
+  const effectiveIsEditingMode = embedded ? storeIsEditingMode : isEditingMode;
+  const effectiveSetIsEditingMode = embedded ? storeSetIsEditingMode : setIsEditingMode;
+  const effectiveIsPaintMode = embedded ? storeIsPaintMode : isPaintMode;
+  const effectiveSetIsPaintMode = embedded ? storeSetIsPaintMode : setIsPaintMode;
   
   // Inline Edit State
   const [editingBubbleId, setEditingBubbleId] = useState<string | null>(null);
@@ -173,7 +193,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const pageIndicatorTimer = useRef<number | null>(null);
 
   // Swipe navigation hook
-  const swipeEnabled = !stripMode && !isEditingMode && !isPaintMode && !isAddingBubble && !editingBubbleId;
+  const swipeEnabled = !stripMode && !effectiveIsEditingMode && !effectiveIsPaintMode && !isAddingBubble && !editingBubbleId;
   useSwipeNavigation({
     containerRef,
     onNext: onNext,
@@ -193,8 +213,8 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   // Pinch-to-zoom hook
   usePinchZoom({
     containerRef,
-    zoom,
-    setZoom,
+    zoom: effectiveZoom,
+    setZoom: effectiveSetZoom,
     enabled: !stripMode,
   });
 
@@ -280,7 +300,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   useViewerShortcuts({
     activeBubble,
     editingBubbleId,
-    isEditingMode,
+    isEditingMode: effectiveIsEditingMode,
     isAddingBubble,
     onBubbleUpdate,
     onBubbleDelete,
@@ -303,9 +323,9 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   });
 
   useEffect(() => {
-    setZoom(1);
-    setIsEditingMode(isOcrDone); 
-    setIsPaintMode(false);
+    effectiveSetZoom(1);
+    effectiveSetIsEditingMode(isOcrDone); 
+    effectiveSetIsPaintMode(false);
     setEditingBubbleId(null);
   }, [image.id, isOcrDone]);
 
@@ -353,7 +373,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPaintMode) return;
+    if (!effectiveIsPaintMode) return;
     isDrawing.current = true;
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
@@ -363,7 +383,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPaintMode || !isDrawing.current) return;
+    if (!effectiveIsPaintMode || !isDrawing.current) return;
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) { const { x, y } = getCoords(e); ctx.lineTo(x, y); ctx.stroke(); }
   };
@@ -443,7 +463,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     
     setIsAddingBubble(false);
     setNewBubbleStart(null);
-    setIsEditingMode(true);
+    effectiveSetIsEditingMode(true);
   };
 
   const handleDownload = async () => {
@@ -463,9 +483,9 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   };
 
   return (
-    <div className={`flex flex-col h-full ${stripMode ? '' : 'bg-slate-900 rounded-lg border border-slate-700 shadow-2xl overflow-hidden'} relative`}>
+    <div className={`flex flex-col h-full ${embedded ? 'overflow-hidden' : stripMode ? '' : 'bg-slate-900 rounded-lg border border-slate-700 shadow-2xl overflow-hidden'} relative`}>
       
-      {!stripMode && !isCleanMode && (
+      {!stripMode && !isCleanMode && !hideInternalToolbar && (
         <div className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-3 md:px-4 sticky top-0 z-50">
           <div className="flex items-center space-x-2">
              <button onClick={onPrev} disabled={!onPrev} className={`p-1.5 rounded-lg transition-colors ${onPrev ? 'text-white hover:bg-slate-700' : 'text-slate-600'}`}>
@@ -492,14 +512,14 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                   </button>
                 )}
                 <div className="h-6 w-px bg-slate-700 mx-1"></div>
-                <button onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${isPaintMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Pintar (Whiteout)">
+                <button onClick={() => { effectiveSetIsPaintMode(!effectiveIsPaintMode); effectiveSetIsEditingMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${effectiveIsPaintMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Pintar (Whiteout)">
                   <PaintBrushIcon className="w-5 h-5" />
                 </button>
-                <button onClick={() => { setIsEditingMode(!isEditingMode); setIsPaintMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${isEditingMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Manipulação Direta">
+                <button onClick={() => { effectiveSetIsEditingMode(!effectiveIsEditingMode); effectiveSetIsPaintMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${effectiveIsEditingMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Manipulação Direta">
                   <PencilSquareIcon className="w-5 h-5" />
                 </button>
                 <button 
-                  onClick={() => { setIsAddingBubble(!isAddingBubble); setIsPaintMode(false); setIsEditingMode(false); }} 
+                  onClick={() => { setIsAddingBubble(!isAddingBubble); effectiveSetIsPaintMode(false); effectiveSetIsEditingMode(false); }} 
                   className={`p-2 rounded-lg ${isAddingBubble ? 'bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} 
                   title="Adicionar Balão (clique na imagem)"
                 >
@@ -531,8 +551,8 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
             </button>
             
             <div className="flex items-center hidden md:flex">
-              <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="p-2 text-slate-300 hover:bg-slate-700 rounded-lg"><MagnifyingGlassMinusIcon className="w-4 h-4" /></button>
-              <button onClick={() => setZoom(z => Math.min(4, z + 0.25))} className="p-2 text-slate-300 hover:bg-slate-700 rounded-lg"><MagnifyingGlassPlusIcon className="w-4 h-4" /></button>
+              <button onClick={() => effectiveSetZoom(z => Math.max(0.5, z - 0.25))} className="p-2 text-slate-300 hover:bg-slate-700 rounded-lg"><MagnifyingGlassMinusIcon className="w-4 h-4" /></button>
+              <button onClick={() => effectiveSetZoom(z => Math.min(4, z + 0.25))} className="p-2 text-slate-300 hover:bg-slate-700 rounded-lg"><MagnifyingGlassPlusIcon className="w-4 h-4" /></button>
             </div>
           </div>
         </div>
@@ -555,7 +575,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           style={{ 
             width: stripMode ? '100%' : (image.status === 'done' ? 'auto' : '100%'), 
             maxWidth: stripMode ? '100%' : '1200px',
-            transform: stripMode ? 'none' : `scale(${zoom})`,
+            transform: stripMode ? 'none' : `scale(${effectiveZoom})`,
           }}
         >
           <img 
@@ -604,13 +624,13 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
             <canvas
               ref={canvasRef}
               onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing}
-              className={`absolute inset-0 z-10 w-full h-full ${isPaintMode ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`}
+              className={`absolute inset-0 z-10 w-full h-full ${effectiveIsPaintMode ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`}
             />
           )}
 
           {(image.status === 'done' || isOcrDone) && hasOverlays && (
             <div 
-              className={`absolute inset-0 w-full h-full z-20 ${isPaintMode ? 'pointer-events-none opacity-40' : ''}`}
+              className={`absolute inset-0 w-full h-full z-20 ${effectiveIsPaintMode ? 'pointer-events-none opacity-40' : ''}`}
               onClick={(e) => {
                 // Fecha edição se clicou no container (não em um balão)
                 if (e.target === e.currentTarget && editingBubbleId) {
@@ -619,14 +639,14 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
               }}
             >
               {image.bubbles.map(bubble => {
-                const isVisible = (viewMode === ViewMode.TRANSLATED) || isEditingMode || isOcrDone;
+                const isVisible = (viewMode === ViewMode.TRANSLATED) || effectiveIsEditingMode || isOcrDone;
                 if (!isVisible) return null;
 
                 return (
                   <BubbleOverlay 
                     key={bubble.id} 
                     bubble={bubble} 
-                    isEditing={isEditingMode && !stripMode} 
+                    isEditing={effectiveIsEditingMode && !stripMode} 
                     activeEditingId={editingBubbleId}
                     hideBorder={hideBubbleBorders}
                     isTransparent={isBubbleTransparent}

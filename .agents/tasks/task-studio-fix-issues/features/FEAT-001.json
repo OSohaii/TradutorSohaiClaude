@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Expand useStudioStore with activeTool and zoom state, then wire MangaViewer to support hideInternalToolbar and embedded props, connect RightPanel tools, add zoom controls to StudioToolbar, fix opacity slider, fix underscore props in StudioPage, and fix visual inconsistencies.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Expand store/useStudioStore.ts: Add `activeTool` state (type: 'select' | 'text' | 'move' | 'brush' | 'eraser' | 'eyedropper', default 'select'), `setActiveTool` action, `zoom` state (number, default 1), `setZoom` action, `isEditingMode` (boolean, default false), `setIsEditingMode` action, `isPaintMode` (boolean, default false), `setIsPaintMode` action.",
+    "Step 2 - Modify components/MangaViewer.tsx: Add two new optional props to MangaViewerProps interface: `hideInternalToolbar?: boolean` (default false) and `embedded?: boolean` (default false). When `hideInternalToolbar` is true, do NOT render the internal toolbar section (the `{!stripMode && !isCleanMode && (...)}` block that starts at the `<div className=\"h-14 bg-slate-800...\">`). When `embedded` is true, remove the `rounded-lg border border-slate-700 shadow-2xl` classes from the outermost container div (keep `bg-slate-900` only when NOT embedded; when embedded use no bg, no border, no rounded, no shadow). Also expose zoom/setZoom/isEditingMode/isPaintMode/setIsEditingMode/setIsPaintMode via reading from useStudioStore when `embedded` is true, so the toolbar and RightPanel can control them externally. When embedded is true, read zoom from useStudioStore instead of local state, and sync isEditingMode/isPaintMode to store.",
+    "Step 3 - Modify components/studio/CentralCanvas.tsx: Pass `hideInternalToolbar={true}` and `embedded={true}` to the MangaViewer component.",
+    "Step 4 - Modify components/studio/StudioToolbar.tsx: Add zoom controls (zoom out button, zoom percentage display, zoom in button) in the center or right area of the toolbar. Read zoom/setZoom from useStudioStore. Also add edit mode toggle (PencilSquareIcon) and paint mode toggle (PaintBrushIcon) buttons that read/write isEditingMode/isPaintMode from useStudioStore. Import MagnifyingGlassPlusIcon, MagnifyingGlassMinusIcon, PencilSquareIcon, PaintBrushIcon from heroicons.",
+    "Step 5 - Modify components/studio/RightPanel.tsx: Remove `opacity-60 pointer-events-none` from the tools grid container. Remove the `(em breve)` label. Make each tool button functional by reading/writing activeTool from useStudioStore. 'T' (Texto) should call setActiveTool('text') and also set isEditingMode(true)/isPaintMode(false). 'Selecao' should call setActiveTool('select'). 'Mover' should call setActiveTool('move'). 'Pincel' should call setActiveTool('brush') and set isPaintMode(true)/isEditingMode(false). 'Borracha' should call setActiveTool('eraser'). 'Conta-gotas' should call setActiveTool('eyedropper'). Highlight the active tool with a distinct style (e.g., bg-purple-500/20 border-purple-500/30). Also fix the opacity slider: remove `pointer-events-none` from the slider input, remove the `opacity-70` from the container div, remove the `(preview)` label text.",
+    "Step 6 - Modify pages/StudioPage.tsx: Remove the underscore prefix from all auth modal props. Change `onOpenIchigo: _onOpenIchigo` to `onOpenIchigo`, `onOpenTorii: _onOpenTorii` to `onOpenTorii`, etc. These props are not currently used in the JSX but removing the underscore ensures no lint warnings. If there's a lint rule about unused vars, add a comment or use them in a way that satisfies lint (e.g., assign to a context or pass to a child that might need them in the future).",
+    "Step 7 - Visual consistency: In MangaViewer.tsx when `embedded` is true, the container should have NO background, NO border, NO rounded corners, NO shadow - just `flex flex-col h-full overflow-hidden relative`. The Studio bg-[#0a0a0f] will show through. The viewer area inside already has `bg-slate-950` which is fine."
+  ],
+  "acceptance_criteria": [
+    "Running `npm run typecheck` passes with no errors",
+    "Running `npm run test` passes all existing tests",
+    "Running `npm run build` succeeds",
+    "MangaViewer renders without internal toolbar when hideInternalToolbar=true",
+    "MangaViewer renders without decorative styles when embedded=true",
+    "StudioToolbar shows zoom percentage and +/- buttons that change zoom",
+    "StudioToolbar shows edit mode and paint mode toggle buttons",
+    "RightPanel tools grid is interactive (no opacity-60, no pointer-events-none)",
+    "Clicking a tool in RightPanel updates activeTool in useStudioStore",
+    "Opacity slider is interactive (no pointer-events-none on the input)",
+    "StudioPage does not have underscore-prefixed props"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run test",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

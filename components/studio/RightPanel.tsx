@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { TextBubble } from '../../types';
 import { useStudioStore } from '../../store/useStudioStore';
-import type { RightPanelTab } from '../../store/useStudioStore';
+import type { RightPanelTab, StudioTool } from '../../store/useStudioStore';
 
 interface RightPanelProps {
   bubbles: TextBubble[];
@@ -25,13 +25,13 @@ const tabs: { id: RightPanelTab; label: string }[] = [
   { id: 'history', label: 'HISTORICO' },
 ];
 
-const tools = [
-  { icon: 'T', label: 'Texto' },
-  { icon: CursorArrowRaysIcon, label: 'Selecao' },
-  { icon: ArrowsPointingOutIcon, label: 'Mover' },
-  { icon: PaintBrushIcon, label: 'Pincel' },
-  { icon: 'E', label: 'Borracha' },
-  { icon: EyeDropperIcon, label: 'Conta-gotas' },
+const tools: { icon: typeof CursorArrowRaysIcon | string; label: string; toolId: StudioTool }[] = [
+  { icon: 'T', label: 'Texto', toolId: 'text' },
+  { icon: CursorArrowRaysIcon, label: 'Selecao', toolId: 'select' },
+  { icon: ArrowsPointingOutIcon, label: 'Mover', toolId: 'move' },
+  { icon: PaintBrushIcon, label: 'Pincel', toolId: 'brush' },
+  { icon: 'E', label: 'Borracha', toolId: 'eraser' },
+  { icon: EyeDropperIcon, label: 'Conta-gotas', toolId: 'eyedropper' },
 ];
 
 const RightPanel: React.FC<RightPanelProps> = ({
@@ -43,8 +43,26 @@ const RightPanel: React.FC<RightPanelProps> = ({
   const setActiveTab = useStudioStore(s => s.setActiveRightTab);
   const selectedLayerId = useStudioStore(s => s.selectedLayerId);
   const setSelectedLayerId = useStudioStore(s => s.setSelectedLayerId);
+  const activeTool = useStudioStore(s => s.activeTool);
+  const setActiveTool = useStudioStore(s => s.setActiveTool);
+  const setIsEditingMode = useStudioStore(s => s.setIsEditingMode);
+  const setIsPaintMode = useStudioStore(s => s.setIsPaintMode);
   const [hiddenLayers, setHiddenLayers] = React.useState<Set<string>>(new Set());
   const [opacity, setOpacity] = React.useState(100);
+
+  const handleToolClick = (toolId: StudioTool) => {
+    setActiveTool(toolId);
+    if (toolId === 'text' || toolId === 'select') {
+      setIsEditingMode(true);
+      setIsPaintMode(false);
+    } else if (toolId === 'brush' || toolId === 'eraser') {
+      setIsPaintMode(true);
+      setIsEditingMode(false);
+    } else {
+      setIsEditingMode(false);
+      setIsPaintMode(false);
+    }
+  };
 
   const toggleLayerVisibility = (id: string) => {
     setHiddenLayers(prev => {
@@ -119,10 +137,10 @@ const RightPanel: React.FC<RightPanelProps> = ({
       </div>
 
       {/* Opacity Slider */}
-      <div className="border-t border-white/5 pt-3 opacity-70">
+      <div className="border-t border-white/5 pt-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
-            Opacidade <span className="normal-case tracking-normal text-slate-600">(preview)</span>
+            Opacidade
           </span>
           <span className="text-[10px] text-slate-400 font-mono">{opacity}%</span>
         </div>
@@ -132,34 +150,42 @@ const RightPanel: React.FC<RightPanelProps> = ({
           max={100}
           value={opacity}
           onChange={(e) => setOpacity(Number(e.target.value))}
-          className="w-full h-1 bg-white/10 rounded-full appearance-none pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-500/30"
+          className="w-full h-1 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-500/30"
         />
       </div>
 
       {/* Tools Grid */}
       <div className="border-t border-white/5 pt-3">
         <div className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">
-          Ferramentas <span className="normal-case tracking-normal text-slate-600">(em breve)</span>
+          Ferramentas
         </div>
-        <div className="grid grid-cols-3 gap-1.5 opacity-60 pointer-events-none">
-          {tools.map((tool, idx) => (
-            <button
-              key={idx}
-              className="flex flex-col items-center gap-1 p-2 rounded-lg bg-white/5 border border-white/5 transition-all group"
-              title={tool.label}
-            >
-              {typeof tool.icon === 'string' ? (
-                <span className="text-sm font-bold text-slate-400 transition-colors">
-                  {tool.icon}
+        <div className="grid grid-cols-3 gap-1.5">
+          {tools.map((tool, idx) => {
+            const isActive = activeTool === tool.toolId;
+            return (
+              <button
+                key={idx}
+                onClick={() => handleToolClick(tool.toolId)}
+                className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all group ${
+                  isActive
+                    ? 'bg-purple-500/20 border-purple-500/30 text-purple-300'
+                    : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10'
+                }`}
+                title={tool.label}
+              >
+                {typeof tool.icon === 'string' ? (
+                  <span className={`text-sm font-bold transition-colors ${isActive ? 'text-purple-300' : 'text-slate-400'}`}>
+                    {tool.icon}
+                  </span>
+                ) : (
+                  <tool.icon className={`w-4 h-4 transition-colors ${isActive ? 'text-purple-300' : 'text-slate-400'}`} />
+                )}
+                <span className={`text-[8px] transition-colors ${isActive ? 'text-purple-300' : 'text-slate-500'}`}>
+                  {tool.label}
                 </span>
-              ) : (
-                <tool.icon className="w-4 h-4 text-slate-400 transition-colors" />
-              )}
-              <span className="text-[8px] text-slate-500 transition-colors">
-                {tool.label}
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
     </motion.div>
