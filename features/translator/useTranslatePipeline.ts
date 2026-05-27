@@ -1,5 +1,4 @@
 import { useAuthStore, useTranslatorStore, useSessionStore } from '../../store';
-import { useGlossaryStore } from '../../store';
 import { useTokenTracker } from './useTokenTracker';
 import { planPipeline } from './planPipeline';
 import { performIchigoLogout } from './ichigoLogout';
@@ -99,11 +98,6 @@ export const useTranslatePipeline = (
     // Plan is used for debugging; future UI will display it.
     console.debug('[pipeline] plan:', plan);
 
-    const glossaryEntries = useGlossaryStore.getState().entries;
-    const glossary = glossaryEntries.length > 0
-      ? glossaryEntries.map(e => ({ source: e.source, target: e.target, notes: e.notes }))
-      : undefined;
-
     let response;
     try {
       response = await runPipelineApi(
@@ -117,7 +111,6 @@ export const useTranslatePipeline = (
             targetLangCode,
             ichigoModel,
             sourceLanguage,
-            glossary,
           },
         },
         buildByok(),
@@ -137,7 +130,6 @@ export const useTranslatePipeline = (
               targetLangCode,
               ichigoModel,
               sourceLanguage,
-              glossary,
             },
           },
           buildByok(),
@@ -166,11 +158,6 @@ export const useTranslatePipeline = (
   const runPipelineOcrOnly = async (
     base64: string,
   ): Promise<{ bubbles: TextBubble[] }> => {
-    const glossaryEntries = useGlossaryStore.getState().entries;
-    const glossary = glossaryEntries.length > 0
-      ? glossaryEntries.map(e => ({ source: e.source, target: e.target, notes: e.notes }))
-      : undefined;
-
     const response = await runPipelineApi(
       {
         imageBase64: base64,
@@ -182,7 +169,6 @@ export const useTranslatePipeline = (
           targetLangCode,
           ichigoModel,
           sourceLanguage,
-          glossary,
         },
         phase: 'ocr-only',
       },
@@ -196,11 +182,6 @@ export const useTranslatePipeline = (
   const runPipelineTranslateOnly = async (
     bubbles: TextBubble[],
   ): Promise<{ bubbles: TextBubble[] }> => {
-    const glossaryEntries = useGlossaryStore.getState().entries;
-    const glossary = glossaryEntries.length > 0
-      ? glossaryEntries.map(e => ({ source: e.source, target: e.target, notes: e.notes }))
-      : undefined;
-
     const response = await runPipelineApi(
       {
         imageBase64: 'AAAA', // Placeholder - backend does not use image data for translate-only
@@ -212,7 +193,6 @@ export const useTranslatePipeline = (
           targetLangCode,
           ichigoModel,
           sourceLanguage,
-          glossary,
         },
         phase: 'translate-only',
         bubbles,
@@ -283,10 +263,6 @@ export const useTranslatePipeline = (
   const handleRetranslate = async () => {
     if (!currentImage) return;
     const imageId = currentImage.id;
-
-    // Save version before retranslation
-    useSessionStore.getState().saveVersion(imageId);
-
     updateImageStateInStore(imageId, {
       status: 'processing',
       bubbles: [],

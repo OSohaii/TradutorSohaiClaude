@@ -50,8 +50,6 @@ export interface SessionState {
   history: ProcessedImage[];
   /** Per-image bubble undo/redo stack, keyed by image id. */
   bubbleHistory: Record<string, BubbleHistoryEntry>;
-  /** Per-image translation version history (max 5 per page). */
-  translationVersions: Record<string, { bubbles: TextBubble[]; savedAt: number }[]>;
 
   // ---- Direct setters ----
   setCurrentImage: (img: ProcessedImage | null) => void;
@@ -106,14 +104,6 @@ export interface SessionState {
    * Walks history one step forward. Returns true if the cursor moved.
    */
   redoBubbles: () => boolean;
-
-  // ---- Translation version history ----
-  /** Saves the current bubbles for imageId as a version (max 5, FIFO). */
-  saveVersion: (imageId: string) => void;
-  /** Restores bubbles from a saved version. */
-  restoreVersion: (imageId: string, versionIndex: number) => void;
-  /** Returns the count of saved versions for an image. */
-  getVersionCount: (imageId: string) => number;
 }
 
 /**
@@ -134,7 +124,6 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   currentImage: null,
   history: [],
   bubbleHistory: {},
-  translationVersions: {},
 
   setCurrentImage: img => set({ currentImage: img }),
 
@@ -409,42 +398,5 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       },
     }));
     return true;
-  },
-
-  // ---- Translation version history ----
-  saveVersion: (imageId) => {
-    const target = get().history.find(h => h.id === imageId);
-    if (!target || target.bubbles.length === 0) return;
-    set(state => {
-      const existing = state.translationVersions[imageId] || [];
-      const newVersion = { bubbles: [...target.bubbles], savedAt: Date.now() };
-      const updated = [...existing, newVersion].slice(-5); // keep max 5 (FIFO)
-      return {
-        translationVersions: {
-          ...state.translationVersions,
-          [imageId]: updated,
-        },
-      };
-    });
-  },
-
-  restoreVersion: (imageId, versionIndex) => {
-    const versions = get().translationVersions[imageId];
-    if (!versions || !versions[versionIndex]) return;
-    const bubbles = [...versions[versionIndex].bubbles];
-    set(state => ({
-      history: state.history.map(img =>
-        img.id === imageId ? { ...img, bubbles } : img,
-      ),
-      currentImage:
-        state.currentImage?.id === imageId
-          ? { ...state.currentImage, bubbles }
-          : state.currentImage,
-    }));
-  },
-
-  getVersionCount: (imageId) => {
-    const versions = get().translationVersions[imageId];
-    return versions ? versions.length : 0;
   },
 }));
