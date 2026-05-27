@@ -1,8 +1,11 @@
+import { ProcessedImage } from '../types';
+
 // IndexedDB storage para imagens grandes da biblioteca
 const DB_NAME = 'mangalens_library_db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'images';
 const FONTS_STORE_NAME = 'fonts';
+const SESSION_STORE_NAME = 'session';
 
 let db: IDBDatabase | null = null;
 
@@ -37,6 +40,11 @@ export const initDB = (): Promise<IDBDatabase> => {
       // Criar store para fonts (upgrade v1 -> v2)
       if (!database.objectStoreNames.contains(FONTS_STORE_NAME)) {
         database.createObjectStore(FONTS_STORE_NAME, { keyPath: 'name' });
+      }
+
+      // Criar store para session (upgrade v2 -> v3)
+      if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
+        database.createObjectStore(SESSION_STORE_NAME, { keyPath: 'key' });
       }
     };
   });
@@ -276,6 +284,76 @@ export const clearAllFontsFromIDB = async (): Promise<void> => {
     request.onsuccess = () => resolve();
     request.onerror = () => {
       console.error('Erro ao limpar fontes:', request.error);
+      reject(request.error);
+    };
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Session persistence (IndexedDB)
+// ---------------------------------------------------------------------------
+
+export interface SessionSnapshot {
+  history: ProcessedImage[];
+  currentImageId: string | null;
+  savedAt: number;
+}
+
+const SESSION_KEY = 'current_session';
+
+export const saveSessionToIDB = async (snapshot: SessionSnapshot): Promise<void> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([SESSION_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(SESSION_STORE_NAME);
+
+    const request = store.put({ key: SESSION_KEY, ...snapshot });
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => {
+      console.error('Erro ao salvar sessao:', request.error);
+      reject(request.error);
+    };
+  });
+};
+
+export const loadSessionFromIDB = async (): Promise<SessionSnapshot | null> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([SESSION_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(SESSION_STORE_NAME);
+
+    const request = store.get(SESSION_KEY);
+
+    request.onsuccess = () => {
+      if (request.result) {
+        const { history, currentImageId, savedAt } = request.result;
+        resolve({ history, currentImageId, savedAt });
+      } else {
+        resolve(null);
+      }
+    };
+    request.onerror = () => {
+      console.error('Erro ao carregar sessao:', request.error);
+      reject(request.error);
+    };
+  });
+};
+
+export const clearSessionFromIDB = async (): Promise<void> => {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([SESSION_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(SESSION_STORE_NAME);
+
+    const request = store.clear();
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => {
+      console.error('Erro ao limpar sessao:', request.error);
       reject(request.error);
     };
   });
