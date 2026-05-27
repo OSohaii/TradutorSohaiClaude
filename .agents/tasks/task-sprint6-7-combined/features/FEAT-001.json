@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Sprint 6 features: PDF/ZIP export, auto-save session to IndexedDB, bubble search (Ctrl+F), and multi-select in sidebar for batch operations",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create branch feature/sprint6-7 from main",
     "Install jspdf and jszip: npm install jspdf jszip",
@@ -33,5 +33,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All verification passed: typecheck 0 errors, lint 0 errors (40 warnings pre-existing), build produces dist/ successfully. The handleRetranslate function takes no args so multi-select retranslate uses retryImage(id) instead. BubbleSearch navigates to the page but does not select a specific bubble (ProcessedImage has no editingBubbleId field)."
 }
