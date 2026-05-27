@@ -7,6 +7,8 @@ import ComparisonSlider from './ComparisonSlider';
 import ShortcutsOverlay from './ui/ShortcutsOverlay';
 import { useSessionStore } from '../store';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
+import { useSwipeNavigation } from '../features/viewer/useSwipeNavigation';
+import { usePinchZoom } from '../features/viewer/usePinchZoom';
 import { downloadCanvas } from '../features/viewer/downloadCanvas';
 import { 
   MagnifyingGlassPlusIcon, 
@@ -47,6 +49,9 @@ interface MangaViewerProps {
   globalItalic?: boolean;
   globalBubbleScale?: number;
   customFonts?: FontOption[];
+  totalPages?: number;
+  currentPageIndex?: number;
+  costLabel?: string;
 }
 
 export type FontOption = { name: string; value: string; type?: 'font' };
@@ -106,7 +111,10 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   globalBold = true,
   globalItalic = false,
   globalBubbleScale = 1.0,
-  customFonts = []
+  customFonts = [],
+  totalPages = 1,
+  currentPageIndex = 0,
+  costLabel,
 }) => {
   const [zoom, setZoom] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.TRANSLATED);
@@ -158,6 +166,37 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const isDrawing = useRef(false);
+
+  // Page indicator state (shows briefly after navigation)
+  const [showPageIndicator, setShowPageIndicator] = useState(false);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const pageIndicatorTimer = useRef<number | null>(null);
+
+  // Swipe navigation hook
+  const swipeEnabled = !stripMode && !isEditingMode && !isPaintMode && !isAddingBubble && !editingBubbleId;
+  useSwipeNavigation({
+    containerRef,
+    onNext: onNext,
+    onPrev: onPrev,
+    enabled: swipeEnabled,
+    onSwipe: (direction) => {
+      setSwipeDirection(direction);
+      setShowPageIndicator(true);
+      if (pageIndicatorTimer.current) clearTimeout(pageIndicatorTimer.current);
+      pageIndicatorTimer.current = window.setTimeout(() => {
+        setShowPageIndicator(false);
+        setSwipeDirection(null);
+      }, 2000);
+    },
+  });
+
+  // Pinch-to-zoom hook
+  usePinchZoom({
+    containerRef,
+    zoom,
+    setZoom,
+    enabled: !stripMode,
+  });
 
   const isFullServerResult = !!image.translatedImageUrl && image.bubbles.length === 0;
   const hasOverlays = image.bubbles.length > 0;
@@ -512,7 +551,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
         )}
         
         <div 
-          className="relative transition-transform duration-200 ease-out origin-top z-[20]"
+          className={`relative transition-transform duration-200 ease-out origin-top z-[20] ${swipeDirection === 'left' ? 'animate-slide-left' : swipeDirection === 'right' ? 'animate-slide-right' : ''}`}
           style={{ 
             width: stripMode ? '100%' : (image.status === 'done' ? 'auto' : '100%'), 
             maxWidth: stripMode ? '100%' : '1200px',
@@ -681,6 +720,53 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
 
       {/* Shortcuts Overlay */}
       <ShortcutsOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+
+      {/* Page Indicator (shows on swipe/tap navigation) */}
+      {showPageIndicator && totalPages > 1 && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-none animate-fade-indicator">
+          <div className="bg-black/70 backdrop-blur text-white text-lg font-bold px-5 py-3 rounded-xl shadow-lg">
+            {currentPageIndex + 1} / {totalPages}
+          </div>
+        </div>
+      )}
+
+      {/* Clean Mode Tap Zones */}
+      {isCleanMode && !stripMode && (
+        <div className="absolute inset-0 z-[55] flex">
+          {/* Left 20% - previous page */}
+          <div
+            className="w-[20%] h-full cursor-pointer"
+            onClick={() => {
+              onPrev?.();
+              setShowPageIndicator(true);
+              if (pageIndicatorTimer.current) clearTimeout(pageIndicatorTimer.current);
+              pageIndicatorTimer.current = window.setTimeout(() => setShowPageIndicator(false), 1500);
+            }}
+          />
+          {/* Center 60% - toggle UI */}
+          <div
+            className="w-[60%] h-full cursor-pointer"
+            onClick={() => onToggleCleanMode?.()}
+          />
+          {/* Right 20% - next page */}
+          <div
+            className="w-[20%] h-full cursor-pointer"
+            onClick={() => {
+              onNext?.();
+              setShowPageIndicator(true);
+              if (pageIndicatorTimer.current) clearTimeout(pageIndicatorTimer.current);
+              pageIndicatorTimer.current = window.setTimeout(() => setShowPageIndicator(false), 1500);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Cost label for OCR review */}
+      {costLabel && isOcrDone && !stripMode && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-40 text-xs text-slate-300 bg-slate-800/80 backdrop-blur px-2 py-1 rounded">
+          {costLabel}
+        </div>
+      )}
     </div>
   );
 };

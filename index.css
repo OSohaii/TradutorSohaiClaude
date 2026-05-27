@@ -67,3 +67,32 @@ body {
 .animate-drag-pulse {
   animation: dragPulse 1.5s ease-in-out infinite;
 }
+
+/* Page transition animations (swipe navigation) */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeIndicator {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-slide-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-fade-indicator {
+  animation: fadeIndicator 2s ease-out forwards;
+}
