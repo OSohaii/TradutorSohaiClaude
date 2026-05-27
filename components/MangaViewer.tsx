@@ -32,7 +32,8 @@ import {
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
   MinusIcon,
-  PlusIcon
+  PlusIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface MangaViewerProps {
@@ -44,6 +45,7 @@ interface MangaViewerProps {
   onBubbleAdd?: (bubble: TextBubble) => void;
   onImageUpdate?: (image: ProcessedImage) => void;
   onToggleStrip?: () => void;
+  onRetry?: () => void;
   stripMode?: boolean;
   isCleanMode?: boolean;
   defaultFont?: string;
@@ -99,6 +101,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   onBubbleAdd,
   onImageUpdate,
   onToggleStrip,
+  onRetry,
   stripMode = false,
   isCleanMode = false,
   defaultFont,
@@ -726,6 +729,24 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
             style={{ display: 'block' }}
             onClick={() => editingBubbleId && setEditingBubbleId(null)}
           />
+
+          {/* Error overlay */}
+          {image.status === 'error' && (
+            <div className="absolute inset-0 z-40 bg-slate-900/80 flex flex-col items-center justify-center gap-4 p-6">
+              <ExclamationTriangleIcon className="w-12 h-12 text-red-400" />
+              <p className="text-sm text-red-300 text-center max-w-xs">
+                {image.errorMessage || 'Erro na traducao'}
+              </p>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Tentar Novamente
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Overlay para adicionar novo balão */}
           {isAddingBubble && image.status === 'done' && (

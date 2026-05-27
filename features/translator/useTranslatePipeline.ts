@@ -35,6 +35,7 @@ export interface UseTranslatePipelineReturn {
   handleRetranslate: () => Promise<void>;
   handleTranslateImage: (imageId: string) => Promise<void>;
   handleTranslateAll: () => Promise<void>;
+  retryImage: (imageId: string) => Promise<void>;
   totalCost: number;
   displayedTotalTokens: number;
 }
@@ -289,5 +290,35 @@ export const useTranslatePipeline = (
     }
   };
 
-  return { handleFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, totalCost, displayedTotalTokens };
+  const retryImage = async (imageId: string): Promise<void> => {
+    const history = useSessionStore.getState().history;
+    const img = history.find(h => h.id === imageId);
+    if (!img || img.status !== 'error') return;
+
+    updateImageStateInStore(imageId, {
+      status: 'processing',
+      bubbles: [],
+      translatedImageUrl: undefined,
+      maskDataUrl: undefined,
+    });
+
+    try {
+      let base64Clean = img.base64;
+      if (!base64Clean) {
+        const res = await fetch(img.imageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], img.fileName, { type: blob.type });
+        const dataUrl = await fileToBase64(file);
+        base64Clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      }
+      const { bubbles, translatedImageUrl } = await runPipeline(base64Clean);
+      updateImageStateInStore(imageId, { base64: base64Clean, bubbles, translatedImageUrl, status: 'done' });
+    } catch (error: unknown) {
+      console.error(`Error retrying ${img.fileName}:`, error);
+      const { errorMsg } = handlePipelineError(error);
+      updateImageStateInStore(imageId, { status: 'error', errorMessage: errorMsg });
+    }
+  };
+
+  return { handleFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, retryImage, totalCost, displayedTotalTokens };
 };

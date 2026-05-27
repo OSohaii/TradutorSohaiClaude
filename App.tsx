@@ -42,6 +42,7 @@ import {
   BookmarkSquareIcon,
   ClockIcon,
   PlayIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -127,7 +128,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, totalCost, displayedTotalTokens } = useTranslatePipeline({
+  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, retryImage, totalCost, displayedTotalTokens } = useTranslatePipeline({
     onAuthError,
   });
 
@@ -321,6 +322,15 @@ const App: React.FC = () => {
                      title="Traduzir"
                    >
                      <PlayIcon className="w-4 h-4" />
+                   </button>
+                 )}
+                 {item.status === 'error' && (
+                   <button
+                     onClick={(e) => { e.stopPropagation(); void retryImage(item.id); }}
+                     className="p-1.5 hover:bg-amber-500/10 hover:text-amber-400 text-amber-500 rounded-lg transition-all"
+                     title="Tentar novamente"
+                   >
+                     <ArrowPathIcon className="w-4 h-4" />
                    </button>
                  )}
                  <button 
@@ -556,6 +566,7 @@ const App: React.FC = () => {
                    globalItalic={targetItalic}
                    globalBubbleScale={globalBubbleScale}
                    customFonts={customFonts}
+                   onRetry={() => retryImage(currentImage!.id)}
                  />
                ) : (
                  /* Long Strip Mode (Scrollable List) */
