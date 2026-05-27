@@ -146,6 +146,25 @@ const App: React.FC = () => {
   const [isDragOverWindow, setIsDragOverWindow] = useState(false);
   const dragCounter = useRef(0);
 
+  // Track items that have already played their shake animation (one-shot)
+  const [shakenItems, setShakenItems] = useState<Set<string>>(new Set());
+
+  // Clear shakenItems when items leave error state so they can re-animate if error recurs
+  useEffect(() => {
+    setShakenItems(prev => {
+      const updated = new Set(prev);
+      let changed = false;
+      for (const id of prev) {
+        const item = history.find(h => h.id === id);
+        if (!item || item.status !== 'error') {
+          updated.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [history]);
+
   // Unified settings panel
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
@@ -374,12 +393,17 @@ const App: React.FC = () => {
                  key={item.id}
                  onClick={() => { setCurrentImageInStore(item); setIsSidebarOpen(false); }}
                  className={`
-                   group flex items-center ${sidebarCollapsed ? 'md:justify-center md:p-1' : 'p-2'} rounded-xl cursor-pointer transition-all border
+                   group flex items-center ${sidebarCollapsed ? 'md:justify-center md:p-1 md:relative' : 'p-2'} rounded-xl cursor-pointer transition-all border
                    ${currentImage?.id === item.id 
                      ? 'bg-indigo-600/10 border-indigo-500/50 shadow-sm' 
                      : 'bg-slate-800/50 border-transparent hover:bg-slate-800 hover:border-slate-700'}
-                   ${item.status === 'error' ? 'animate-shake' : ''}
+                   ${item.status === 'error' && !shakenItems.has(item.id) ? 'animate-shake' : ''}
                  `}
+                 onAnimationEnd={() => {
+                   if (item.status === 'error') {
+                     setShakenItems(prev => new Set(prev).add(item.id));
+                   }
+                 }}
                >
                  <div className={`relative h-10 w-10 rounded-lg bg-slate-950 overflow-hidden flex-shrink-0 border border-slate-800 ${item.status === 'processing' ? 'ring-2 ring-indigo-500 animate-pulse' : ''}`}>
                    <img src={item.imageUrl} className="h-full w-full object-cover" loading="lazy" />
@@ -429,7 +453,7 @@ const App: React.FC = () => {
                      {item.status === 'processing' ? 'Traduzindo...' : item.status === 'done' ? 'Concluido' : item.status === 'idle' ? 'Pendente' : item.status === 'ocr-done' ? 'OCR Pronto' : 'Falha'}
                    </p>
                  </div>
-                 <div className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>
+                 <div className={`${sidebarCollapsed ? 'md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:bg-slate-800 md:rounded-lg md:shadow-lg md:border md:border-slate-700 md:p-1 md:flex md:items-center md:z-10' : ''} flex items-center`}>
                  {item.status === 'idle' && (
                    <button
                      onClick={(e) => { e.stopPropagation(); void handleTranslateImage(item.id); }}
@@ -814,7 +838,7 @@ const App: React.FC = () => {
       <DeepLSettingsModal isOpen={showDeepLSettings} onClose={() => setShowDeepLSettings(false)} />
       <GeminiSettingsModal isOpen={showGeminiSettings} onClose={() => setShowGeminiSettings(false)} />
       <OpenAISettingsModal isOpen={showOpenAISettings} onClose={() => setShowOpenAISettings(false)} />
-      <SettingsPanel isOpen={showSettingsPanel} onClose={() => setShowSettingsPanel(false)} />
+      <SettingsPanel isOpen={showSettingsPanel} onClose={() => setShowSettingsPanel(false)} onOpenIchigoLogin={() => setShowIchigoSettings(true)} />
 
       {/* Library Manager */}
       <LibraryManager

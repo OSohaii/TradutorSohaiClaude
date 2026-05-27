@@ -33,9 +33,10 @@ type TabId = 'engines' | 'fontes' | 'preferencias';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onOpenIchigoLogin?: () => void;
 }
 
-const SettingsPanel: React.FC<Props> = ({ isOpen, onClose }) => {
+const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) => {
   const [activeTab, setActiveTab] = useState<TabId>('engines');
 
   // Auth store
@@ -225,8 +226,16 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose }) => {
                   {ichigoToken && <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded">Logado</span>}
                 </div>
                 <p className="text-[10px] text-slate-400">
-                  {ichigoToken ? `Logado como: ${ichigoEmail}` : 'Use o botao dedicado na sidebar para fazer login.'}
+                  {ichigoToken ? `Logado como: ${ichigoEmail}` : 'Faca login para usar o motor Ichigo.'}
                 </p>
+                {!ichigoToken && onOpenIchigoLogin && (
+                  <button
+                    onClick={() => { onClose(); onOpenIchigoLogin(); }}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Fazer Login
+                  </button>
+                )}
               </div>
 
               {/* Torii */}

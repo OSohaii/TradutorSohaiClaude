@@ -36,16 +36,6 @@ body {
   }
 }
 
-/* Drag-drop overlay border march animation */
-@keyframes borderMarch {
-  0% {
-    background-position: 0 0, 100% 0, 100% 100%, 0 100%;
-  }
-  100% {
-    background-position: 100% 0, 100% 100%, 0 100%, 0 0;
-  }
-}
-
 /* Shake animation for error state */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
