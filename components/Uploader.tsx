@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  ArrowUpTrayIcon, 
+import { ArrowUpTrayIcon, 
   DocumentDuplicateIcon, 
   GlobeAltIcon, 
   CheckCircleIcon, 
@@ -10,6 +9,7 @@ import {
   ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 import { fetchImageViaProxy } from '../services/api/pipelineApi';
+import { useToastStore } from '../store';
 
 interface UploaderProps {
   onFilesSelect: (files: File[]) => void;
@@ -125,7 +125,7 @@ const Uploader: React.FC<UploaderProps> = ({ onFilesSelect, isProcessing }) => {
         onFilesSelect([file]);
         setUrlInput('');
       } else {
-        alert("Não foi possível carregar a imagem. Tente salvar manualmente.");
+        useToastStore.getState().addToast('Nao foi possivel carregar a imagem. Tente salvar manualmente.', 'error');
       }
       setIsFetching(false);
     } else {
@@ -179,7 +179,7 @@ const Uploader: React.FC<UploaderProps> = ({ onFilesSelect, isProcessing }) => {
       setShowManualInput(false);
       setManualHtml('');
     } else {
-      alert("Nenhuma imagem encontrada no HTML colado. Verifique se copiou o código fonte correto.");
+      useToastStore.getState().addToast('Nenhuma imagem encontrada no HTML colado. Verifique se copiou o codigo fonte correto.', 'warning');
     }
   };
 
@@ -214,7 +214,7 @@ const Uploader: React.FC<UploaderProps> = ({ onFilesSelect, isProcessing }) => {
       setScannedImages([]);
       setUrlInput('');
     } else {
-      alert("Falha ao baixar as imagens selecionadas.");
+      useToastStore.getState().addToast('Falha ao baixar as imagens selecionadas.', 'error');
     }
   };
 

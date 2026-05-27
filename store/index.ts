@@ -18,4 +18,7 @@ export type { SessionState } from './useSessionStore';
 export { useLibraryStore } from './useLibraryStore';
 export type { LibraryStoreState } from './useLibraryStore';
 
+export { useToastStore } from './useToastStore';
+export type { Toast, ToastType, ToastState } from './useToastStore';
+
 export { migrateLegacyLocalStorage } from './migrations';

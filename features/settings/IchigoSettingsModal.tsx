@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuthStore, useTranslatorStore } from '../../store';
+import { useToastStore } from '../../store';
 import { ichigoLogin as ichigoLoginApi, ApiError } from '../../services/api/pipelineApi';
 import { performIchigoLogout } from '../translator/ichigoLogout';
 
@@ -33,7 +34,7 @@ const IchigoSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     } catch (error) {
       const message =
         error instanceof ApiError ? error.message : 'Falha no login: verifique suas credenciais.';
-      alert(message);
+      useToastStore.getState().addToast(message, 'error');
     } finally {
       setIsLoggingIn(false);
     }

@@ -8,6 +8,7 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useFontsStore, StoredFont } from '../../store';
+import { useToastStore } from '../../store';
 import { AVAILABLE_FONTS, FontOption, FontGroup } from '../../components/MangaViewer';
 import { fileToBase64 } from '../translator/useTranslatePipeline';
 
@@ -68,7 +69,7 @@ const FontManagerModal: React.FC<Props> = ({ isOpen, onClose }) => {
       await addFont(newFont);
     } catch (err) {
       console.error('Erro ao carregar fonte:', err);
-      alert('Arquivo de fonte invalido ou corrompido.');
+      useToastStore.getState().addToast('Arquivo de fonte invalido ou corrompido.', 'error');
     } finally {
       setFontLoading(false);
     }
