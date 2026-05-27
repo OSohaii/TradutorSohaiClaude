@@ -5,6 +5,8 @@ import Uploader from './components/Uploader';
 import LibraryManager from './components/LibraryManager';
 import { useTranslatePipeline } from './features/translator/useTranslatePipeline';
 import Toggle from './components/ui/Toggle';
+import ToastContainer from './components/ui/Toast';
+import BatchProgressBar from './components/ui/BatchProgressBar';
 import IchigoSettingsModal from './features/settings/IchigoSettingsModal';
 import ToriiSettingsModal from './features/settings/ToriiSettingsModal';
 import DeepLSettingsModal from './features/settings/DeepLSettingsModal';
@@ -607,6 +609,9 @@ const App: React.FC = () => {
           </header>
         )}
 
+        {/* Batch Progress Bar */}
+        <BatchProgressBar />
+
         {/* Content View */}
         <div className="flex-1 overflow-hidden relative">
            {!currentImage ? (
@@ -640,6 +645,7 @@ const App: React.FC = () => {
                    onBubbleAdd={handleBubbleAdd}
                    onImageUpdate={handleImageUpdate}
                    onToggleStrip={() => setReadingMode('strip')}
+                   onToggleCleanMode={() => setIsCleanMode(prev => !prev)}
                    isCleanMode={isCleanMode}
                    showOriginalText={currentImage?.status === 'ocr-done'}
                    onConfirmTranslate={() => void handleTranslateOnly(currentImage!.id)}
@@ -720,6 +726,9 @@ const App: React.FC = () => {
         currentHistory={history}
         onLoadChapter={handleLoadFromLibrary}
       />
+
+      {/* Toast Notifications */}
+      <ToastContainer />
 
     </div>
   );

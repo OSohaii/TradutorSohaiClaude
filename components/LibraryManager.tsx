@@ -25,6 +25,7 @@ import {
   getLibraryStats,
 } from '../services/libraryService';
 import { useLibraryStore } from '../store';
+import { useToastStore } from '../store';
 
 interface LibraryManagerProps {
   isOpen: boolean;
@@ -113,17 +114,17 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
 
     const doneImages = currentHistory.filter(img => img.status === 'done');
     if (doneImages.length === 0) {
-      alert('Não há páginas traduzidas para salvar.');
+      useToastStore.getState().addToast('Nao ha paginas traduzidas para salvar.', 'warning');
       return;
     }
 
     setIsSaving(true);
     try {
       await library.addPagesToChapter(selectedManga.id, chapter.id, doneImages);
-      alert(`${doneImages.length} página(s) salva(s) com sucesso!`);
+      useToastStore.getState().addToast(`${doneImages.length} pagina(s) salva(s) com sucesso!`, 'success');
     } catch (e) {
       console.error('Erro ao salvar:', e);
-      alert('Erro ao salvar páginas.');
+      useToastStore.getState().addToast('Erro ao salvar paginas.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -138,7 +139,7 @@ const LibraryManager: React.FC<LibraryManagerProps> = ({
       onClose();
     } catch (e) {
       console.error('Erro ao carregar capítulo:', e);
-      alert('Erro ao carregar capítulo.');
+      useToastStore.getState().addToast('Erro ao carregar capitulo.', 'error');
     } finally {
       setIsSaving(false);
     }

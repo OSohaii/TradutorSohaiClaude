@@ -19,6 +19,11 @@ export interface UseViewerShortcutsParams {
   setEditingBubbleId: (id: string | null) => void;
   setIsAddingBubble: (v: boolean) => void;
   setNewBubbleStart: (v: {x: number, y: number} | null) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  toggleViewMode?: () => void;
+  toggleCleanMode?: () => void;
+  setShowShortcuts?: (show: boolean) => void;
 }
 
 export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
@@ -40,11 +45,19 @@ export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
     setEditingBubbleId,
     setIsAddingBubble,
     setNewBubbleStart,
+    onPrev,
+    onNext,
+    toggleViewMode,
+    toggleCleanMode,
+    setShowShortcuts,
   } = params;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ESC - Fechar edição ou cancelar criação de balão
+      const tag = document.activeElement?.tagName?.toUpperCase() || '';
+      const isInInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      // ESC - Fechar edicao ou cancelar criacao de balao
       if (e.key === 'Escape') {
         if (isAddingBubble) {
           setIsAddingBubble(false);
@@ -57,7 +70,39 @@ export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
         }
       }
 
-      // Atalhos que funcionam quando um balão está selecionado
+      // ? (Shift+/) - Mostrar atalhos
+      if (e.key === '?' && !isInInput) {
+        e.preventDefault();
+        setShowShortcuts?.(true);
+        return;
+      }
+
+      // ArrowLeft - Pagina anterior
+      if (e.key === 'ArrowLeft' && !isInInput) {
+        onPrev?.();
+        return;
+      }
+
+      // ArrowRight - Proxima pagina
+      if (e.key === 'ArrowRight' && !isInInput) {
+        onNext?.();
+        return;
+      }
+
+      // Space - Alternar modo de visualizacao
+      if (e.key === ' ' && !isInInput && !editingBubbleId) {
+        e.preventDefault();
+        toggleViewMode?.();
+        return;
+      }
+
+      // F - Modo limpo (clean/fullscreen)
+      if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !isInInput && !editingBubbleId) {
+        toggleCleanMode?.();
+        return;
+      }
+
+      // Atalhos que funcionam quando um balao esta selecionado
       if (activeBubble && onBubbleUpdate) {
         // Ctrl+B - Negrito
         if (e.ctrlKey && e.key === 'b') {
@@ -70,7 +115,7 @@ export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
           return;
         }
 
-        // Ctrl+I - Itálico
+        // Ctrl+I - Italico
         if (e.ctrlKey && e.key === 'i') {
           e.preventDefault();
           saveToHistory();
@@ -81,8 +126,8 @@ export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
           return;
         }
 
-        // Delete ou Backspace - Deletar balão (quando não está editando texto)
-        if ((e.key === 'Delete' || e.key === 'Backspace') && !document.activeElement?.tagName.match(/INPUT|TEXTAREA/i)) {
+        // Delete ou Backspace - Deletar balao (quando nao esta editando texto)
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !isInInput) {
           e.preventDefault();
           if (onBubbleDelete) {
             saveToHistory();
@@ -125,7 +170,7 @@ export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
         }
       }
 
-      // Tab / Shift+Tab - Navegação entre balões (funciona no modo edição)
+      // Tab / Shift+Tab - Navegacao entre baloes (funciona no modo edicao)
       if (e.key === 'Tab' && isEditingMode) {
         e.preventDefault();
         navigateBubble(e.shiftKey ? 'prev' : 'next');
@@ -149,5 +194,5 @@ export function useViewerShortcuts(params: UseViewerShortcutsParams): void {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingBubbleId, activeBubble, isEditingMode, onBubbleUpdate, onBubbleDelete, calculatedFontSizes, copiedStyle, undoBubbles, redoBubbles]);
+  }, [editingBubbleId, activeBubble, isEditingMode, onBubbleUpdate, onBubbleDelete, calculatedFontSizes, copiedStyle, undoBubbles, redoBubbles, onPrev, onNext, toggleViewMode, toggleCleanMode, setShowShortcuts, isAddingBubble]);
 }

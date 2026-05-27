@@ -1,9 +1,10 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
 import ViewerToolbar from './ViewerToolbar';
 import ComparisonSlider from './ComparisonSlider';
+import ShortcutsOverlay from './ui/ShortcutsOverlay';
 import { useSessionStore } from '../store';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { downloadCanvas } from '../features/viewer/downloadCanvas';
@@ -34,6 +35,7 @@ interface MangaViewerProps {
   onBubbleAdd?: (bubble: TextBubble) => void;
   onImageUpdate?: (image: ProcessedImage) => void;
   onToggleStrip?: () => void;
+  onToggleCleanMode?: () => void;
   onRetry?: () => void;
   onConfirmTranslate?: () => void;
   onCancelOcr?: () => void;
@@ -93,6 +95,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   onBubbleAdd,
   onImageUpdate,
   onToggleStrip,
+  onToggleCleanMode,
   onRetry,
   onConfirmTranslate,
   onCancelOcr,
@@ -111,6 +114,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [isAddingBubble, setIsAddingBubble] = useState(false);
   const [newBubbleStart, setNewBubbleStart] = useState<{x: number, y: number} | null>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   
   const [hideBubbleBorders, setHideBubbleBorders] = useState(true);
   const [isBubbleTransparent, setIsBubbleTransparent] = useState(false);
@@ -230,6 +234,10 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   };
 
   // Keyboard shortcuts (extracted to custom hook)
+  const toggleViewMode = useCallback(() => {
+    setViewMode((prev) => (prev === ViewMode.ORIGINAL ? ViewMode.TRANSLATED : ViewMode.ORIGINAL));
+  }, []);
+
   useViewerShortcuts({
     activeBubble,
     editingBubbleId,
@@ -248,6 +256,11 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     setEditingBubbleId,
     setIsAddingBubble,
     setNewBubbleStart,
+    onPrev,
+    onNext,
+    toggleViewMode,
+    toggleCleanMode: onToggleCleanMode,
+    setShowShortcuts,
   });
 
   useEffect(() => {
@@ -665,6 +678,9 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           globalBubbleScale={globalBubbleScale}
         />
       )}
+
+      {/* Shortcuts Overlay */}
+      <ShortcutsOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   );
 };
