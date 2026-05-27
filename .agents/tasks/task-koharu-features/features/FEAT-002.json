@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add OpenAI-Compatible custom endpoint support - allows users to configure any OpenAI-compatible server (Ollama, LM Studio, OpenRouter, etc.) with a custom base URL, API key, and model name.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Backend: Add CUSTOM_OPENAI to EngineId enum in backend/app/schemas/common.py.",
     "Step 2 - Backend config: Add custom_openai_api_key, custom_openai_base_url, and custom_openai_model fields to Settings in backend/app/config.py (all default to empty string).",
@@ -35,5 +35,5 @@
     "npx vite build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 15 steps implemented successfully. 28 tests pass. TypeScript compiles cleanly. Production build succeeds. CUSTOM_OPENAI added as translation-only engine (not in OCR dropdown). Custom endpoint requires base URL and model name; API key is optional for local servers like Ollama. Settings button added to sidebar grid with teal color theme."
 }
