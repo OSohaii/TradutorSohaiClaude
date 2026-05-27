@@ -31,5 +31,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": "All changes verified: typecheck passes, all 25 tests pass, build succeeds. MangaViewer non-embedded usage (ReaderPage strip mode) is unaffected since new props default to false. The effectiveZoom/effectiveSetZoom pattern ensures store is only used when embedded=true."
+  "findings": "All changes verified: typecheck passes, all 25 tests pass, build succeeds. MangaViewer non-embedded usage (ReaderPage strip mode) is unaffected since new props default to false. The effectiveZoom/effectiveSetZoom pattern ensures store is only used when embedded=true. Review issues fixed: (1) activeTool drift resolved by calling setActiveTool in toolbar toggles, (2) unused auth props resolved with rest pattern, (3) opacity slider now writes to store and MangaViewer applies it, (4) conditional selectors prevent unnecessary re-renders when not embedded."
 }
