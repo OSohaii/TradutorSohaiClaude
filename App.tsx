@@ -215,6 +215,10 @@ const App: React.FC = () => {
   });
 
   const handleFilesSelect = async (files: File[]) => {
+    // Reset drag state in case it was triggered
+    dragCounter.current = 0;
+    setIsDragOverWindow(false);
+
     const started = await pipelineFilesSelect(files);
     if (started) setIsSidebarOpen(false);
   };
@@ -244,7 +248,8 @@ const App: React.FC = () => {
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer.types.includes('Files')) {
+    // Only show overlay for external file drags
+    if (e.dataTransfer.types.includes('Files') && e.dataTransfer.items.length > 0) {
       dragCounter.current++;
       setIsDragOverWindow(true);
     }
@@ -274,6 +279,16 @@ const App: React.FC = () => {
       void handleFilesSelect(Array.from(e.dataTransfer.files));
     }
   };
+
+  // Safety: auto-dismiss drag overlay after 5 seconds in case events get lost
+  useEffect(() => {
+    if (!isDragOverWindow) return;
+    const timeout = setTimeout(() => {
+      dragCounter.current = 0;
+      setIsDragOverWindow(false);
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, [isDragOverWindow]);
 
   // Merge fonts for the selector (used by font <select> in sidebar)
   const availableFontsForSelector = useMemo(() => {
