@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Toast notification system + enhanced keyboard shortcuts + batch progress bar + shortcuts help overlay",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create branch feature/alpha-sprint3 from current HEAD (feature/alpha-sprint2)",
     "Create store/useToastStore.ts - a zustand store with: toasts array (id, message, type: success|error|info|warning, createdAt), addToast(message, type) which auto-generates id and sets a 4-second auto-dismiss timer, removeToast(id). Types exported.",
@@ -40,5 +40,5 @@
     "npm run typecheck && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All alert() calls replaced with toast notifications. Keyboard shortcuts (ArrowLeft/Right, Space, F, ?) all gated behind isInInput check. Build and typecheck pass cleanly."
 }
