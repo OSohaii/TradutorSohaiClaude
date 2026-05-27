@@ -334,6 +334,14 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
     >
       {content}
 
+      {/* Confidence indicator - orange dot for low confidence */}
+      {bubble.confidence != null && bubble.confidence < 0.7 && !isPaintSelectMode && !isCurrentlyEditingText && (
+        <div
+          className="absolute top-1 right-1 w-2.5 h-2.5 bg-orange-500 rounded-full z-30"
+          title={`Confianca: ${(bubble.confidence * 100).toFixed(0)}%`}
+        />
+      )}
+
       {/* Resize Handles */}
       {isEditing && !isPaintSelectMode && !isCurrentlyEditingText && (
         <>

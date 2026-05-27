@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Sprint 7 features: persistent glossary with backend integration, batch bubble editing, version history per page, and translation confidence indicator",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create store/useGlossaryStore.ts - zustand store persisted to localStorage. State: glossaryEntries (array of {source, target, notes}). Actions: addEntry, editEntry, deleteEntry, importCSV, exportCSV, clearAll.",
     "Add 4th tab 'Glossario' to features/settings/SettingsPanel.tsx. Tab UI: table showing entries with source/target/notes columns, inline add/edit/delete buttons, CSV import button (file input), CSV export button (generates and downloads CSV).",
