@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Add PSD Export with editable layers - a frontend-only feature using the ag-psd npm package. Generates a Photoshop PSD file with the original image as background layer, inpainted/cleaned image as a middle layer (if available), and individual text layers for each translated bubble (editable in Photoshop).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1 - Install ag-psd: Add 'ag-psd' to package.json dependencies. Run npm install.",
     "Step 2 - Create PSD export utility: Create features/export/psdExport.ts that exports a function exportToPsd(image: ProcessedImage): Promise<Blob>. This function: (a) Loads the original image from imageUrl as pixel data (using canvas). (b) If translatedImageUrl exists, loads it as a second layer. (c) For each bubble in image.bubbles, creates a text layer at the bubble's bounding box position with the translatedText content. (d) Uses ag-psd's writePsd() to generate the PSD buffer. (e) Returns a Blob for download.",

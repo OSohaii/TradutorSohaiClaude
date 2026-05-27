@@ -10,6 +10,7 @@ import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { useSwipeNavigation } from '../features/viewer/useSwipeNavigation';
 import { usePinchZoom } from '../features/viewer/usePinchZoom';
 import { downloadCanvas } from '../features/viewer/downloadCanvas';
+import { exportToPsd, downloadBlob } from '../features/export/psdExport';
 import { 
   MagnifyingGlassPlusIcon, 
   MagnifyingGlassMinusIcon,
@@ -23,6 +24,7 @@ import {
   StopIcon,
   CubeTransparentIcon,
   ArrowDownTrayIcon,
+  DocumentArrowDownIcon,
   ExclamationTriangleIcon,
   ChatBubbleLeftRightIcon,
   ArrowsRightLeftIcon,
@@ -131,6 +133,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [isPaintMode, setIsPaintMode] = useState(false);
   const [brushSize, setBrushSize] = useState(20);
   const [paintColor, setPaintColor] = useState('#FFFFFF');
+  const [isExportingPsd, setIsExportingPsd] = useState(false);
   
   // Inline Edit State
   const [editingBubbleId, setEditingBubbleId] = useState<string | null>(null);
@@ -462,6 +465,20 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     });
   };
 
+  const handleExportPsd = async () => {
+    if (isExportingPsd) return;
+    setIsExportingPsd(true);
+    try {
+      const blob = await exportToPsd(image);
+      const filename = image.fileName.replace(/\.[^.]+$/, '') + '.psd';
+      downloadBlob(blob, filename);
+    } catch (err) {
+      console.error('PSD export failed:', err);
+    } finally {
+      setIsExportingPsd(false);
+    }
+  };
+
   return (
     <div className={`flex flex-col h-full ${stripMode ? '' : 'bg-slate-900 rounded-lg border border-slate-700 shadow-2xl overflow-hidden'} relative`}>
       
@@ -486,6 +503,16 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                 <button onClick={handleDownload} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Baixar Página Traduzida">
                   <ArrowDownTrayIcon className="w-5 h-5" />
                 </button>
+                {image.status === 'done' && (
+                  <button 
+                    onClick={handleExportPsd} 
+                    disabled={isExportingPsd}
+                    className={`p-2 rounded-lg ${isExportingPsd ? 'text-indigo-400 animate-pulse' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`} 
+                    title="Exportar PSD (Photoshop)"
+                  >
+                    <DocumentArrowDownIcon className="w-5 h-5" />
+                  </button>
+                )}
                 {image.status === 'done' && (
                   <button onClick={() => setShowComparison(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Comparar Original/Traduzido">
                     <ArrowsRightLeftIcon className="w-5 h-5" />
