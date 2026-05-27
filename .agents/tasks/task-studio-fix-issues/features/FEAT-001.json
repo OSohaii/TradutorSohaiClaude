@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "fix",
   "description": "Expand useStudioStore with activeTool and zoom state, then wire MangaViewer to support hideInternalToolbar and embedded props, connect RightPanel tools, add zoom controls to StudioToolbar, fix opacity slider, fix underscore props in StudioPage, and fix visual inconsistencies.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Expand store/useStudioStore.ts: Add `activeTool` state (type: 'select' | 'text' | 'move' | 'brush' | 'eraser' | 'eyedropper', default 'select'), `setActiveTool` action, `zoom` state (number, default 1), `setZoom` action, `isEditingMode` (boolean, default false), `setIsEditingMode` action, `isPaintMode` (boolean, default false), `setIsPaintMode` action.",
     "Step 2 - Modify components/MangaViewer.tsx: Add two new optional props to MangaViewerProps interface: `hideInternalToolbar?: boolean` (default false) and `embedded?: boolean` (default false). When `hideInternalToolbar` is true, do NOT render the internal toolbar section (the `{!stripMode && !isCleanMode && (...)}` block that starts at the `<div className=\"h-14 bg-slate-800...\">`). When `embedded` is true, remove the `rounded-lg border border-slate-700 shadow-2xl` classes from the outermost container div (keep `bg-slate-900` only when NOT embedded; when embedded use no bg, no border, no rounded, no shadow). Also expose zoom/setZoom/isEditingMode/isPaintMode/setIsEditingMode/setIsPaintMode via reading from useStudioStore when `embedded` is true, so the toolbar and RightPanel can control them externally. When embedded is true, read zoom from useStudioStore instead of local state, and sync isEditingMode/isPaintMode to store.",
@@ -31,5 +31,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All changes verified: typecheck passes, all 25 tests pass, build succeeds. MangaViewer non-embedded usage (ReaderPage strip mode) is unaffected since new props default to false. The effectiveZoom/effectiveSetZoom pattern ensures store is only used when embedded=true."
 }
