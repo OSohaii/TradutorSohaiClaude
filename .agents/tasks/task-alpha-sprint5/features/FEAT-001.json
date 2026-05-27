@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Sprint 5 - Immersive Reading Mode with swipe navigation, pinch-to-zoom, cost estimation, and first-use onboarding. All four features are implemented as a single coherent unit.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "STEP 1 - Create branch: git checkout -b feature/alpha-sprint5 from current HEAD (feature/alpha-sprint4)",
 
@@ -48,5 +48,5 @@
     "npm run typecheck && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 4 features implemented and verified. Typecheck and build pass cleanly. Swipe navigation uses 50px threshold. Pinch zoom bounds 0.5-4x. Cost estimation uses ENGINE_PRICING map. Onboarding uses localStorage key mangalens-onboarding-done. Added ? button to settings grid (now 8 cols). Clean mode tap zones: 20/60/20 split."
 }
