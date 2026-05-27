@@ -39,6 +39,8 @@ export interface PipelineRequest {
   translation: TranslationConfig;
   cleaner?: CleanerConfig;
   options?: PipelineOptions;
+  phase?: 'full' | 'ocr-only' | 'translate-only';
+  bubbles?: TextBubble[];
 }
 
 export interface TokenUsage {

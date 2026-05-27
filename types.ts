@@ -70,7 +70,7 @@ export interface ProcessedImage {
   imageUrl: string;
   base64: string;
   bubbles: TextBubble[];
-  status: 'idle' | 'processing' | 'done' | 'error';
+  status: 'idle' | 'processing' | 'ocr-done' | 'done' | 'error';
   errorMessage?: string;
   maskDataUrl?: string; // Stores the painted whiteout layer
   translatedImageUrl?: string; // URL for server-side rendered translations (e.g. Torii)

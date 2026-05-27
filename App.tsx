@@ -44,6 +44,9 @@ import {
   ClockIcon,
   PlayIcon,
   ArrowPathIcon,
+  EyeIcon,
+  CheckIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -140,7 +143,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, retryImage, totalCost, displayedTotalTokens } = useTranslatePipeline({
+  const { handleFilesSelect: pipelineFilesSelect, handleRetranslate, handleTranslateImage, handleTranslateAll, handleOcrOnly, handleTranslateOnly, handleCancelOcr, retryImage, totalCost, displayedTotalTokens } = useTranslatePipeline({
     onAuthError,
   });
 
@@ -312,6 +315,11 @@ const App: React.FC = () => {
                        <ClockIcon className="w-4 h-4 text-indigo-300" />
                      </div>
                    )}
+                   {item.status === 'ocr-done' && (
+                     <div className="absolute inset-0 bg-amber-900/60 flex items-center justify-center">
+                       <EyeIcon className="w-4 h-4 text-amber-200" />
+                     </div>
+                   )}
                    {item.status === 'error' && (
                       <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center">
                         <ExclamationTriangleIcon className="w-4 h-4 text-red-200" />
@@ -323,8 +331,8 @@ const App: React.FC = () => {
                      <p className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">{item.fileName}</p>
                      <span className="text-[9px] text-slate-500">#{idx + 1}</span>
                    </div>
-                   <p className={`text-[10px] truncate ${item.status === 'error' ? 'text-red-400' : item.status === 'idle' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                     {item.status === 'processing' ? 'Traduzindo...' : item.status === 'done' ? 'Concluído' : item.status === 'idle' ? 'Pendente' : 'Falha'}
+                   <p className={`text-[10px] truncate ${item.status === 'error' ? 'text-red-400' : item.status === 'idle' ? 'text-indigo-400' : item.status === 'ocr-done' ? 'text-amber-400' : 'text-slate-500'}`}>
+                     {item.status === 'processing' ? 'Traduzindo...' : item.status === 'done' ? 'Concluido' : item.status === 'idle' ? 'Pendente' : item.status === 'ocr-done' ? 'OCR Pronto' : 'Falha'}
                    </p>
                  </div>
                  {item.status === 'idle' && (
@@ -335,6 +343,24 @@ const App: React.FC = () => {
                    >
                      <PlayIcon className="w-4 h-4" />
                    </button>
+                 )}
+                 {item.status === 'ocr-done' && (
+                   <>
+                     <button
+                       onClick={(e) => { e.stopPropagation(); void handleTranslateOnly(item.id); }}
+                       className="p-1.5 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-lg transition-all"
+                       title="Confirmar e Traduzir"
+                     >
+                       <CheckIcon className="w-4 h-4" />
+                     </button>
+                     <button
+                       onClick={(e) => { e.stopPropagation(); handleCancelOcr(item.id); }}
+                       className="p-1.5 hover:bg-red-500/10 text-red-400 hover:text-red-300 rounded-lg transition-all"
+                       title="Cancelar OCR"
+                     >
+                       <XCircleIcon className="w-4 h-4" />
+                     </button>
+                   </>
                  )}
                  {item.status === 'error' && (
                    <button
@@ -615,6 +641,9 @@ const App: React.FC = () => {
                    onImageUpdate={handleImageUpdate}
                    onToggleStrip={() => setReadingMode('strip')}
                    isCleanMode={isCleanMode}
+                   showOriginalText={currentImage?.status === 'ocr-done'}
+                   onConfirmTranslate={() => void handleTranslateOnly(currentImage!.id)}
+                   onCancelOcr={() => handleCancelOcr(currentImage!.id)}
                    defaultFont={targetFont}
                    globalBold={targetBold}
                    globalItalic={targetItalic}

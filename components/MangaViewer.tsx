@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
 import ViewerToolbar from './ViewerToolbar';
+import ComparisonSlider from './ComparisonSlider';
 import { useSessionStore } from '../store';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { downloadCanvas } from '../features/viewer/downloadCanvas';
@@ -20,6 +21,8 @@ import {
   CubeTransparentIcon,
   ArrowDownTrayIcon,
   ExclamationTriangleIcon,
+  ChatBubbleLeftRightIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 
 interface MangaViewerProps {
@@ -32,8 +35,11 @@ interface MangaViewerProps {
   onImageUpdate?: (image: ProcessedImage) => void;
   onToggleStrip?: () => void;
   onRetry?: () => void;
+  onConfirmTranslate?: () => void;
+  onCancelOcr?: () => void;
   stripMode?: boolean;
   isCleanMode?: boolean;
+  showOriginalText?: boolean;
   defaultFont?: string;
   globalBold?: boolean;
   globalItalic?: boolean;
@@ -88,8 +94,11 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   onImageUpdate,
   onToggleStrip,
   onRetry,
+  onConfirmTranslate,
+  onCancelOcr,
   stripMode = false,
   isCleanMode = false,
+  showOriginalText = false,
   defaultFont,
   globalBold = true,
   globalItalic = false,
@@ -101,6 +110,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [isAddingBubble, setIsAddingBubble] = useState(false);
   const [newBubbleStart, setNewBubbleStart] = useState<{x: number, y: number} | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
   
   const [hideBubbleBorders, setHideBubbleBorders] = useState(true);
   const [isBubbleTransparent, setIsBubbleTransparent] = useState(false);
@@ -147,6 +157,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
 
   const isFullServerResult = !!image.translatedImageUrl && image.bubbles.length === 0;
   const hasOverlays = image.bubbles.length > 0;
+  const isOcrDone = image.status === 'ocr-done';
   const activeImageUrl = (viewMode === ViewMode.TRANSLATED && image.translatedImageUrl) ? image.translatedImageUrl : image.imageUrl;
 
   const allFonts = useMemo(() => {
@@ -241,10 +252,10 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
 
   useEffect(() => {
     setZoom(1);
-    setIsEditingMode(false); 
+    setIsEditingMode(isOcrDone); 
     setIsPaintMode(false);
     setEditingBubbleId(null);
-  }, [image.id]);
+  }, [image.id, isOcrDone]);
 
   useEffect(() => {
     if (isFullServerResult || stripMode) return; 
@@ -412,17 +423,22 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                <ChevronRightIcon className="w-5 h-5" />
              </button>
              <div className="h-6 w-px bg-slate-600 mx-1 hidden sm:block"></div>
-             <span className={`text-[10px] sm:text-xs font-mono px-2 py-0.5 rounded ${image.status === 'done' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                {image.status === 'done' ? (isFullServerResult ? 'IMG' : 'OCR') : '...'}
+             <span className={`text-[10px] sm:text-xs font-mono px-2 py-0.5 rounded ${image.status === 'done' ? 'bg-green-500/10 text-green-400' : image.status === 'ocr-done' ? 'bg-amber-500/10 text-amber-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                {image.status === 'done' ? (isFullServerResult ? 'IMG' : 'OCR') : image.status === 'ocr-done' ? 'REVISAO' : '...'}
              </span>
           </div>
 
           <div className="flex items-center gap-1 md:gap-2">
-            {image.status === 'done' && hasOverlays && (
+            {(image.status === 'done' || isOcrDone) && hasOverlays && (
               <>
                 <button onClick={handleDownload} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Baixar Página Traduzida">
                   <ArrowDownTrayIcon className="w-5 h-5" />
                 </button>
+                {image.status === 'done' && (
+                  <button onClick={() => setShowComparison(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Comparar Original/Traduzido">
+                    <ArrowsRightLeftIcon className="w-5 h-5" />
+                  </button>
+                )}
                 <div className="h-6 w-px bg-slate-700 mx-1"></div>
                 <button onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${isPaintMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Pintar (Whiteout)">
                   <PaintBrushIcon className="w-5 h-5" />
@@ -447,6 +463,13 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                   </button>
                 </div>
               </>
+            )}
+
+            {/* Comparison button for full server results (no overlays) */}
+            {image.status === 'done' && isFullServerResult && (
+              <button onClick={() => setShowComparison(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg" title="Comparar Original/Traduzido">
+                <ArrowsRightLeftIcon className="w-5 h-5" />
+              </button>
             )}
             
             <div className="h-6 w-px bg-slate-600 mx-1 hidden sm:block"></div>
@@ -511,7 +534,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           )}
 
           {/* Overlay para adicionar novo balão */}
-          {isAddingBubble && image.status === 'done' && (
+          {isAddingBubble && (image.status === 'done' || isOcrDone) && (
             <div 
               className="absolute inset-0 z-30 cursor-crosshair"
               onMouseDown={handleAddBubbleStart}
@@ -533,7 +556,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
             />
           )}
 
-          {image.status === 'done' && hasOverlays && (
+          {(image.status === 'done' || isOcrDone) && hasOverlays && (
             <div 
               className={`absolute inset-0 w-full h-full z-20 ${isPaintMode ? 'pointer-events-none opacity-40' : ''}`}
               onClick={(e) => {
@@ -544,7 +567,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
               }}
             >
               {image.bubbles.map(bubble => {
-                const isVisible = (viewMode === ViewMode.TRANSLATED) || isEditingMode;
+                const isVisible = (viewMode === ViewMode.TRANSLATED) || isEditingMode || isOcrDone;
                 if (!isVisible) return null;
 
                 return (
@@ -555,6 +578,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                     activeEditingId={editingBubbleId}
                     hideBorder={hideBubbleBorders}
                     isTransparent={isBubbleTransparent}
+                    showOriginalText={showOriginalText || isOcrDone}
                     onUpdate={onBubbleUpdate}
                     onEditStart={startEditingBubble}
                     onDelete={onBubbleDelete}
@@ -572,6 +596,37 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           )}
         </div>
       </div>
+
+      {/* OCR Review Banner */}
+      {isOcrDone && !stripMode && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-amber-600/90 backdrop-blur text-white text-sm px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <EyeIcon className="w-4 h-4" />
+          Revisao OCR - Ajuste os baloes detectados
+        </div>
+      )}
+
+      {/* OCR Review Action Buttons */}
+      {isOcrDone && !stripMode && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3">
+          {onConfirmTranslate && (
+            <button
+              onClick={onConfirmTranslate}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-lg transition-colors flex items-center gap-2"
+            >
+              <ChatBubbleLeftRightIcon className="w-4 h-4" />
+              Confirmar e Traduzir
+            </button>
+          )}
+          {onCancelOcr && (
+            <button
+              onClick={onCancelOcr}
+              className="px-4 py-2 bg-red-600/80 hover:bg-red-700 text-white text-sm font-medium rounded-lg shadow-lg transition-colors"
+            >
+              Cancelar
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Floating Unified Toolbar */}
       {activeBubble && (
@@ -594,6 +649,20 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           onBubbleUpdate={onBubbleUpdate}
           onBubbleDelete={onBubbleDelete}
           startEditingBubble={startEditingBubble}
+        />
+      )}
+
+      {/* Comparison Slider Overlay */}
+      {showComparison && image.status === 'done' && (
+        <ComparisonSlider
+          originalImageUrl={image.imageUrl}
+          translatedImageUrl={image.translatedImageUrl}
+          image={image}
+          onClose={() => setShowComparison(false)}
+          defaultFont={defaultFont}
+          globalBold={globalBold}
+          globalItalic={globalItalic}
+          globalBubbleScale={globalBubbleScale}
         />
       )}
     </div>
