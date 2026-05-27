@@ -1,0 +1,7 @@
+{
+  "task_id": "task-sprint6-7-combined",
+  "task_description": "Re-implement Sprint 6 and Sprint 7 features from clean main: PDF/ZIP export, session persistence, bubble search, multi-select sidebar, persistent glossary, batch bubble editing, version history, and confidence indicator",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

@@ -16,6 +16,7 @@ import {
   CpuChipIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore, useTranslatorStore, useFontsStore, StoredFont } from '../../store';
+import { useGlossaryStore } from '../../store';
 import { useToastStore } from '../../store';
 import Toggle from '../../components/ui/Toggle';
 import { AVAILABLE_FONTS, FontOption, FontGroup } from '../../components/MangaViewer';
@@ -28,7 +29,7 @@ const TORII_TRANSLATORS = [
   { id: 'gpt-4o', name: 'GPT-4o (Premium)' },
 ];
 
-type TabId = 'engines' | 'fontes' | 'preferencias';
+type TabId = 'engines' | 'fontes' | 'preferencias' | 'glossario';
 
 interface Props {
   isOpen: boolean;
@@ -74,6 +75,23 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
 
   const [fontSearch, setFontSearch] = useState('');
   const [fontPreviewText, setFontPreviewText] = useState('The quick brown fox jumps over the lazy dog');
+
+  // Glossary store
+  const glossaryEntries = useGlossaryStore(s => s.entries);
+  const addGlossaryEntry = useGlossaryStore(s => s.addEntry);
+  const editGlossaryEntry = useGlossaryStore(s => s.editEntry);
+  const deleteGlossaryEntry = useGlossaryStore(s => s.deleteEntry);
+  const importCSV = useGlossaryStore(s => s.importCSV);
+  const exportCSV = useGlossaryStore(s => s.exportCSV);
+  const clearAllGlossary = useGlossaryStore(s => s.clearAll);
+
+  const [newSource, setNewSource] = useState('');
+  const [newTarget, setNewTarget] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editSource, setEditSource] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   const filteredSystemFonts = useMemo(() => {
     if (!fontSearch) return AVAILABLE_FONTS;
@@ -125,6 +143,7 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
     { id: 'engines', label: 'Engines' },
     { id: 'fontes', label: 'Fontes' },
     { id: 'preferencias', label: 'Preferencias' },
+    { id: 'glossario', label: 'Glossario' },
   ];
 
   return (
@@ -446,6 +465,194 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
                   colorClass="bg-pink-600"
                 />
               </div>
+            </div>
+          )}
+
+          {/* Glossario Tab */}
+          {activeTab === 'glossario' && (
+            <div className="space-y-4">
+              {/* Add entry form */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 space-y-3">
+                <h4 className="text-sm font-bold text-white">Adicionar Termo</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Origem"
+                    value={newSource}
+                    onChange={(e) => setNewSource(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Traducao"
+                    value={newTarget}
+                    onChange={(e) => setNewTarget(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Notas (opcional)"
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (newSource.trim() && newTarget.trim()) {
+                      addGlossaryEntry({
+                        id: `glossary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                        source: newSource.trim(),
+                        target: newTarget.trim(),
+                        notes: newNotes.trim() || undefined,
+                      });
+                      setNewSource('');
+                      setNewTarget('');
+                      setNewNotes('');
+                    }
+                  }}
+                  disabled={!newSource.trim() || !newTarget.trim()}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  Adicionar
+                </button>
+              </div>
+
+              {/* CSV Import/Export */}
+              <div className="flex items-center gap-2">
+                <label className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors">
+                  Importar CSV
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const text = ev.target?.result as string;
+                          if (text) importCSV(text);
+                        };
+                        reader.readAsText(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <button
+                  onClick={() => {
+                    const csv = exportCSV();
+                    if (!csv) return;
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'glossary.csv';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  disabled={glossaryEntries.length === 0}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  Exportar CSV
+                </button>
+                <button
+                  onClick={clearAllGlossary}
+                  disabled={glossaryEntries.length === 0}
+                  className="px-3 py-1.5 bg-red-600/80 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors ml-auto"
+                >
+                  Limpar Tudo
+                </button>
+              </div>
+
+              {/* Entries table */}
+              {glossaryEntries.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 bg-slate-900/50 rounded-lg border border-slate-800 border-dashed">
+                  Nenhum termo no glossario. Adicione termos acima ou importe um CSV.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase">
+                    <span>Origem</span>
+                    <span>Traducao</span>
+                    <span>Notas</span>
+                    <span>Acoes</span>
+                  </div>
+                  {glossaryEntries.map((entry) => (
+                    <div key={entry.id} className="bg-slate-800 rounded-lg border border-slate-700 p-2">
+                      {editingEntryId === entry.id ? (
+                        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                          <input
+                            type="text"
+                            value={editSource}
+                            onChange={(e) => setEditSource(e.target.value)}
+                            className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                          />
+                          <input
+                            type="text"
+                            value={editTarget}
+                            onChange={(e) => setEditTarget(e.target.value)}
+                            className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                          />
+                          <input
+                            type="text"
+                            value={editNotes}
+                            onChange={(e) => setEditNotes(e.target.value)}
+                            className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                editGlossaryEntry(entry.id, {
+                                  source: editSource.trim(),
+                                  target: editTarget.trim(),
+                                  notes: editNotes.trim() || undefined,
+                                });
+                                setEditingEntryId(null);
+                              }}
+                              className="text-green-400 hover:text-green-300 text-xs px-1"
+                            >
+                              OK
+                            </button>
+                            <button
+                              onClick={() => setEditingEntryId(null)}
+                              className="text-slate-400 hover:text-slate-300 text-xs px-1"
+                            >
+                              X
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                          <span className="text-xs text-white truncate">{entry.source}</span>
+                          <span className="text-xs text-indigo-300 truncate">{entry.target}</span>
+                          <span className="text-xs text-slate-400 truncate">{entry.notes || '-'}</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingEntryId(entry.id);
+                                setEditSource(entry.source);
+                                setEditTarget(entry.target);
+                                setEditNotes(entry.notes || '');
+                              }}
+                              className="text-slate-400 hover:text-indigo-400 text-[10px] px-1"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => deleteGlossaryEntry(entry.id)}
+                              className="text-slate-400 hover:text-red-400 text-[10px] px-1"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
+import BatchBubbleToolbar from './BatchBubbleToolbar';
 import ViewerToolbar from './ViewerToolbar';
 import ComparisonSlider from './ComparisonSlider';
 import ShortcutsOverlay from './ui/ShortcutsOverlay';
@@ -26,6 +27,7 @@ import {
   ExclamationTriangleIcon,
   ChatBubbleLeftRightIcon,
   ArrowsRightLeftIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 
 interface MangaViewerProps {
@@ -135,6 +137,27 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   // Inline Edit State
   const [editingBubbleId, setEditingBubbleId] = useState<string | null>(null);
   const [calculatedFontSizes, setCalculatedFontSizes] = useState<Record<string, number>>({});
+
+  // Multi-select state
+  const [selectedBubbleIds, setSelectedBubbleIds] = useState<Set<string>>(new Set());
+
+  // Version history dropdown
+  const [showVersions, setShowVersions] = useState(false);
+  const translationVersions = useSessionStore(s => s.translationVersions[image.id] || []);
+  const restoreVersion = useSessionStore(s => s.restoreVersion);
+  const [versionLabels, setVersionLabels] = useState<string[]>([]);
+
+  // Update version labels when dropdown opens
+  useEffect(() => {
+    if (showVersions && translationVersions.length > 0) {
+      const now = Date.now();
+      const labels = translationVersions.map((v) => {
+        const ago = Math.round((now - v.savedAt) / 60000);
+        return ago < 1 ? 'agora' : ago < 60 ? `${ago} min atras` : `${Math.round(ago / 60)}h atras`;
+      });
+      setVersionLabels(labels);
+    }
+  }, [showVersions, translationVersions]);
 
   // Bubble undo/redo lives in the session store now (B8/B9 fix in
   // PR #8). The viewer reads `canUndo`/`canRedo` reactively and calls
@@ -491,6 +514,40 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                     <ArrowsRightLeftIcon className="w-5 h-5" />
                   </button>
                 )}
+                {/* Versions dropdown */}
+                {translationVersions.length > 0 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVersions(!showVersions)}
+                      className={`p-2 rounded-lg ${showVersions ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                      title="Versoes"
+                    >
+                      <ClockIcon className="w-5 h-5" />
+                    </button>
+                    {showVersions && (
+                      <div className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl py-1 min-w-[180px] z-[70]">
+                        <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-700">
+                          Versoes ({translationVersions.length})
+                        </div>
+                        {translationVersions.map((v, idx) => {
+                          const label = versionLabels[idx] || '';
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                restoreVersion(image.id, idx);
+                                setShowVersions(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                            >
+                              Versao {idx + 1} - {label} ({v.bubbles.length} baloes)
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="h-6 w-px bg-slate-700 mx-1"></div>
                 <button onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${isPaintMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Pintar (Whiteout)">
                   <PaintBrushIcon className="w-5 h-5" />
@@ -616,32 +673,57 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                 if (e.target === e.currentTarget && editingBubbleId) {
                   setEditingBubbleId(null);
                 }
+                // Clear multi-select on background click
+                if (e.target === e.currentTarget && selectedBubbleIds.size > 0) {
+                  setSelectedBubbleIds(new Set());
+                }
               }}
             >
               {image.bubbles.map(bubble => {
                 const isVisible = (viewMode === ViewMode.TRANSLATED) || isEditingMode || isOcrDone;
                 if (!isVisible) return null;
 
+                const isMultiSelected = selectedBubbleIds.has(bubble.id);
+
                 return (
-                  <BubbleOverlay 
-                    key={bubble.id} 
-                    bubble={bubble} 
-                    isEditing={isEditingMode && !stripMode} 
-                    activeEditingId={editingBubbleId}
-                    hideBorder={hideBubbleBorders}
-                    isTransparent={isBubbleTransparent}
-                    showOriginalText={showOriginalText || isOcrDone}
-                    onUpdate={onBubbleUpdate}
-                    onEditStart={startEditingBubble}
-                    onDelete={onBubbleDelete}
-                    defaultFont={defaultFont}
-                    enableTextStroke={showTextStroke}
-                    globalBold={globalBold}
-                    globalItalic={globalItalic}
-                    globalBubbleScale={globalBubbleScale}
-                    onFontSizeCalculated={(size) => setCalculatedFontSizes(prev => ({...prev, [bubble.id]: size}))}
-                    fontSizeCalculatedValue={calculatedFontSizes[bubble.id]}
-                  />
+                  <div
+                    key={bubble.id}
+                    onClick={(e) => {
+                      if (e.ctrlKey || e.metaKey) {
+                        e.stopPropagation();
+                        setSelectedBubbleIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(bubble.id)) {
+                            next.delete(bubble.id);
+                          } else {
+                            next.add(bubble.id);
+                          }
+                          return next;
+                        });
+                        setEditingBubbleId(null);
+                      }
+                    }}
+                    className="contents"
+                  >
+                    <BubbleOverlay 
+                      bubble={bubble} 
+                      isEditing={isEditingMode && !stripMode} 
+                      activeEditingId={editingBubbleId}
+                      hideBorder={hideBubbleBorders && !isMultiSelected}
+                      isTransparent={isBubbleTransparent}
+                      showOriginalText={showOriginalText || isOcrDone}
+                      onUpdate={onBubbleUpdate}
+                      onEditStart={startEditingBubble}
+                      onDelete={onBubbleDelete}
+                      defaultFont={defaultFont}
+                      enableTextStroke={showTextStroke}
+                      globalBold={globalBold}
+                      globalItalic={globalItalic}
+                      globalBubbleScale={globalBubbleScale}
+                      onFontSizeCalculated={(size) => setCalculatedFontSizes(prev => ({...prev, [bubble.id]: size}))}
+                      fontSizeCalculatedValue={calculatedFontSizes[bubble.id]}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -681,7 +763,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
       )}
 
       {/* Floating Unified Toolbar */}
-      {activeBubble && (
+      {activeBubble && selectedBubbleIds.size <= 1 && (
         <ViewerToolbar
           activeBubble={activeBubble}
           currentBubbleIndex={currentBubbleIndex}
@@ -701,6 +783,58 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           onBubbleUpdate={onBubbleUpdate}
           onBubbleDelete={onBubbleDelete}
           startEditingBubble={startEditingBubble}
+        />
+      )}
+
+      {/* Batch Bubble Toolbar - shown when multiple bubbles selected */}
+      {selectedBubbleIds.size > 1 && (
+        <BatchBubbleToolbar
+          selectedCount={selectedBubbleIds.size}
+          allFonts={allFonts}
+          onFontChange={(fontFamily) => {
+            if (!onBubbleUpdate) return;
+            saveToHistory();
+            image.bubbles.forEach(b => {
+              if (selectedBubbleIds.has(b.id)) {
+                onBubbleUpdate({ ...b, fontFamily });
+              }
+            });
+          }}
+          onBoldToggle={() => {
+            if (!onBubbleUpdate) return;
+            saveToHistory();
+            image.bubbles.forEach(b => {
+              if (selectedBubbleIds.has(b.id)) {
+                onBubbleUpdate({ ...b, fontWeight: b.fontWeight === 'bold' ? 'normal' : 'bold' });
+              }
+            });
+          }}
+          onItalicToggle={() => {
+            if (!onBubbleUpdate) return;
+            saveToHistory();
+            image.bubbles.forEach(b => {
+              if (selectedBubbleIds.has(b.id)) {
+                onBubbleUpdate({ ...b, fontStyle: b.fontStyle === 'italic' ? 'normal' : 'italic' });
+              }
+            });
+          }}
+          onFontSizeChange={(delta) => {
+            if (!onBubbleUpdate) return;
+            saveToHistory();
+            image.bubbles.forEach(b => {
+              if (selectedBubbleIds.has(b.id)) {
+                const currentSize = b.fontSize || calculatedFontSizes[b.id] || 14;
+                onBubbleUpdate({ ...b, fontSize: Math.max(4, currentSize + delta) });
+              }
+            });
+          }}
+          onDeleteAll={() => {
+            if (!onBubbleDelete) return;
+            saveToHistory();
+            selectedBubbleIds.forEach(id => onBubbleDelete(id));
+            setSelectedBubbleIds(new Set());
+          }}
+          onClear={() => setSelectedBubbleIds(new Set())}
         />
       )}
 
