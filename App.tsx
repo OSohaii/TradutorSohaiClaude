@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const updateImageStateInStore = useSessionStore(s => s.updateImageState);
   const updateBubbleInStore = useSessionStore(s => s.updateBubble);
   const updateBubbleForImage = useSessionStore(s => s.updateBubbleForImage);
+  const pushBubbleSnapshotForImage = useSessionStore(s => s.pushBubbleSnapshotForImage);
   const removeBubbleInStore = useSessionStore(s => s.removeBubble);
   const addBubbleInStore = useSessionStore(s => s.addBubble);
 
@@ -590,6 +591,7 @@ const App: React.FC = () => {
                               globalBubbleScale={globalBubbleScale}
                               customFonts={customFonts}
                               onBubbleUpdate={(b) => {
+                                 pushBubbleSnapshotForImage(img.id);
                                  updateBubbleForImage(img.id, b);
                               }}
                             />

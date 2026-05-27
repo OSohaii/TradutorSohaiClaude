@@ -92,6 +92,10 @@ export interface SessionState {
    */
   pushBubbleSnapshot: () => void;
   /**
+   * Like pushBubbleSnapshot but targets a specific image by ID (for strip mode).
+   */
+  pushBubbleSnapshotForImage: (imageId: string) => void;
+  /**
    * Walks history one step back. Replaces `image.bubbles` with the
    * previous snapshot. Returns true if the cursor moved.
    */
@@ -322,6 +326,27 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         bubbleHistory: {
           ...state.bubbleHistory,
           [cur.id]: { snapshots: trimmed, index: trimmed.length - 1 },
+        },
+      };
+    });
+  },
+
+  pushBubbleSnapshotForImage: (imageId) => {
+    const target = get().history.find(h => h.id === imageId);
+    if (!target) return;
+    set(state => {
+      const existing = state.bubbleHistory[imageId];
+      const head = existing
+        ? existing.snapshots.slice(0, existing.index + 1)
+        : [];
+      const next = [...head, [...target.bubbles]];
+      const trimmed = next.length > MAX_BUBBLE_SNAPSHOTS
+        ? next.slice(next.length - MAX_BUBBLE_SNAPSHOTS)
+        : next;
+      return {
+        bubbleHistory: {
+          ...state.bubbleHistory,
+          [imageId]: { snapshots: trimmed, index: trimmed.length - 1 },
         },
       };
     });

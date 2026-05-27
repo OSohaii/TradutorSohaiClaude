@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import base64
+import ipaddress
 import logging
+import socket
 import time
 from urllib.parse import unquote, urlparse
 
@@ -18,6 +20,26 @@ router = APIRouter()
 # Generous but bounded limits
 _TIMEOUT = 20.0
 _MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+
+
+def _is_private_url(url: str) -> bool:
+    """Check if URL points to a private/internal network address."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return True
+    hostname = parsed.hostname
+    if not hostname:
+        return True
+    try:
+        infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC)
+        for info in infos:
+            addr = info[4][0]
+            ip = ipaddress.ip_address(addr)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return True
+    except (socket.gaierror, ValueError):
+        return True
+    return False
 
 
 def _derive_filename(url: str, content_type: str) -> str:
@@ -40,6 +62,12 @@ def _derive_filename(url: str, content_type: str) -> str:
 @router.post("/fetch-image", response_model=FetchImageResponse)
 async def fetch_image(req: FetchImageRequest) -> FetchImageResponse:
     """Download an image from a URL and return it as base64."""
+    if _is_private_url(req.url):
+        raise HTTPException(
+            status_code=400,
+            detail="URL bloqueada: enderecos internos nao sao permitidos.",
+        )
+
     try:
         async with httpx.AsyncClient(
             timeout=_TIMEOUT,

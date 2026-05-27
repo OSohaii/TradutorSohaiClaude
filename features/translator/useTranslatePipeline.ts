@@ -260,7 +260,15 @@ export const useTranslatePipeline = (
     return true;
   };
 
+  const checkCredentials = (): boolean => {
+    if ((ocrEngine === 'ICHIGO') && !ichigoToken) { onAuthError('ichigo'); return false; }
+    if ((transEngine === 'TORII' || ocrEngine === 'TORII' || useToriiForCleaning) && !toriiApiKey) { onAuthError('torii'); return false; }
+    if (transEngine === 'DEEPL' && !deepLKey) { onAuthError('deepl'); return false; }
+    return true;
+  };
+
   const handleTranslateImage = async (imageId: string): Promise<void> => {
+    if (!checkCredentials()) return;
     const history = useSessionStore.getState().history;
     const img = history.find(h => h.id === imageId);
     if (!img || img.status !== 'idle') return;
@@ -283,6 +291,7 @@ export const useTranslatePipeline = (
   };
 
   const handleTranslateAll = async (): Promise<void> => {
+    if (!checkCredentials()) return;
     const history = useSessionStore.getState().history;
     const idleImages = history.filter(h => h.status === 'idle');
     for (const img of idleImages) {
@@ -291,6 +300,7 @@ export const useTranslatePipeline = (
   };
 
   const retryImage = async (imageId: string): Promise<void> => {
+    if (!checkCredentials()) return;
     const history = useSessionStore.getState().history;
     const img = history.find(h => h.id === imageId);
     if (!img || img.status !== 'error') return;
