@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add OpenAI-Compatible custom endpoint support - allows users to configure any OpenAI-compatible server (Ollama, LM Studio, OpenRouter, etc.) with a custom base URL, API key, and model name.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1 - Backend: Add CUSTOM_OPENAI to EngineId enum in backend/app/schemas/common.py.",
     "Step 2 - Backend config: Add custom_openai_api_key, custom_openai_base_url, and custom_openai_model fields to Settings in backend/app/config.py (all default to empty string).",

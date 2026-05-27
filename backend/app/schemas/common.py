@@ -48,6 +48,7 @@ class EngineId(str, Enum):
     CLAUDE = "CLAUDE"
     CLAUDE_HAIKU = "CLAUDE_HAIKU"
     DEEPSEEK = "DEEPSEEK"
+    CUSTOM_OPENAI = "CUSTOM_OPENAI"
 
 
 BubbleType = Literal["dialogue", "sfx"]

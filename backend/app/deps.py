@@ -27,6 +27,9 @@ class Byok:
     openai: str | None = None
     claude: str | None = None
     deepseek: str | None = None
+    custom_openai: str | None = None
+    custom_base_url: str | None = None
+    custom_model: str | None = None
 
 
 async def get_byok(
@@ -38,6 +41,9 @@ async def get_byok(
     x_byok_openai: Annotated[str | None, Header()] = None,
     x_byok_claude: Annotated[str | None, Header()] = None,
     x_byok_deepseek: Annotated[str | None, Header()] = None,
+    x_byok_custom: Annotated[str | None, Header()] = None,
+    x_custom_base_url: Annotated[str | None, Header()] = None,
+    x_custom_model: Annotated[str | None, Header()] = None,
 ) -> Byok:
     return Byok(
         gemini=_clean(x_byok_gemini),
@@ -48,6 +54,9 @@ async def get_byok(
         openai=_clean(x_byok_openai),
         claude=_clean(x_byok_claude),
         deepseek=_clean(x_byok_deepseek),
+        custom_openai=_clean(x_byok_custom),
+        custom_base_url=_clean(x_custom_base_url),
+        custom_model=_clean(x_custom_model),
     )
 
 
@@ -122,6 +131,24 @@ class KeyResolver:
             hint="X-Byok-Deepseek header or DEEPSEEK_API_KEY env var",
         )
 
+    def for_custom_openai(self) -> str:
+        """Custom OpenAI key is optional (e.g. Ollama needs no key)."""
+        return self._byok.custom_openai or self._settings.custom_openai_api_key or ""
+
+    def custom_base_url(self) -> str:
+        return self._require(
+            self._byok.custom_base_url or self._settings.custom_openai_base_url,
+            engine="custom_openai",
+            hint="X-Custom-Base-Url header or CUSTOM_OPENAI_BASE_URL env var",
+        )
+
+    def custom_model(self) -> str:
+        return self._require(
+            self._byok.custom_model or self._settings.custom_openai_model,
+            engine="custom_openai",
+            hint="X-Custom-Model header or CUSTOM_OPENAI_MODEL env var",
+        )
+
     @staticmethod
     def _require(value: str | None, *, engine: str, hint: str) -> str:
         if not value:
@@ -162,4 +189,5 @@ ENGINE_TO_BYOK: dict[EngineId, str] = {
     EngineId.CLAUDE: "claude",
     EngineId.CLAUDE_HAIKU: "claude",
     EngineId.DEEPSEEK: "deepseek",
+    EngineId.CUSTOM_OPENAI: "custom_openai",
 }

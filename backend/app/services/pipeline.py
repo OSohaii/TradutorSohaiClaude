@@ -26,6 +26,7 @@ from ..providers import openai as openai_provider
 from ..providers import torii as torii_provider
 from ..providers import claude as claude_provider
 from ..providers import deepseek as deepseek_provider
+from ..providers import custom_openai as custom_openai_provider
 from ..schemas.common import EngineId, TextBubble, TokenUsage
 from ..schemas.pipeline import PipelineRequest, PipelineResponse
 
@@ -77,6 +78,10 @@ _DEEPSEEK_MODELS: dict[EngineId, str] = {
 
 def _is_deepseek(engine: EngineId) -> bool:
     return engine in _DEEPSEEK_MODELS
+
+
+def _is_custom_openai(engine: EngineId) -> bool:
+    return engine == EngineId.CUSTOM_OPENAI
 
 
 _FULL_PIPELINE_ENGINES = {
@@ -330,6 +335,15 @@ async def _run_translation_step(
             bubbles,
             model=_DEEPSEEK_MODELS[engine],
             api_key=keys.for_deepseek(),
+            target_language=target_language,
+        )
+        return translated, tokens
+    if _is_custom_openai(engine):
+        translated, tokens = await custom_openai_provider.translate_bubbles(
+            bubbles,
+            base_url=keys.custom_base_url(),
+            api_key=keys.for_custom_openai(),
+            model=keys.custom_model(),
             target_language=target_language,
         )
         return translated, tokens

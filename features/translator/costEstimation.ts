@@ -23,6 +23,7 @@ export const ENGINE_PRICING: Record<EngineId, PricePerMillion> = {
   TORII: { input: 0, output: 0 },
   DEEPL: { input: 0, output: 0 },
   GOOGLE: { input: 0, output: 0 },
+  CUSTOM_OPENAI: { input: 0, output: 0 },
 };
 
 // Average tokens per page estimates

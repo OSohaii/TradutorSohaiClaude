@@ -27,7 +27,7 @@ export const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export interface UseTranslatePipelineOptions {
-  onAuthError: (modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai' | 'claude' | 'deepseek') => void;
+  onAuthError: (modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai' | 'claude' | 'deepseek' | 'custom_openai') => void;
 }
 
 export interface UseTranslatePipelineReturn {
@@ -65,6 +65,9 @@ export const useTranslatePipeline = (
   const openaiApiKey = useAuthStore(s => s.openaiApiKey);
   const claudeApiKey = useAuthStore(s => s.claudeApiKey);
   const deepseekApiKey = useAuthStore(s => s.deepseekApiKey);
+  const customOpenaiApiKey = useAuthStore(s => s.customOpenaiApiKey);
+  const customOpenaiBaseUrl = useAuthStore(s => s.customOpenaiBaseUrl);
+  const customOpenaiModel = useAuthStore(s => s.customOpenaiModel);
 
   const currentImage = useSessionStore(s => s.currentImage);
   const addImagesToSession = useSessionStore(s => s.addImages);
@@ -90,6 +93,9 @@ export const useTranslatePipeline = (
     openai: openaiApiKey || undefined,
     claude: claudeApiKey || undefined,
     deepseek: deepseekApiKey || undefined,
+    custom: customOpenaiApiKey || undefined,
+    customBaseUrl: customOpenaiBaseUrl || undefined,
+    customModel: customOpenaiModel || undefined,
   });
 
   const runPipeline = async (
@@ -234,6 +240,9 @@ export const useTranslatePipeline = (
           case 'deepseek':
             onAuthError('deepseek');
             break;
+          case 'custom_openai':
+            onAuthError('custom_openai');
+            break;
         }
       }
 
@@ -315,6 +324,7 @@ export const useTranslatePipeline = (
     if ((ocrEngine === 'GPT4O' || ocrEngine === 'GPT4O_MINI' || transEngine === 'GPT4O' || transEngine === 'GPT4O_MINI') && !openaiApiKey) { onAuthError('openai'); return false; }
     if ((ocrEngine === 'CLAUDE' || ocrEngine === 'CLAUDE_HAIKU' || transEngine === 'CLAUDE' || transEngine === 'CLAUDE_HAIKU') && !claudeApiKey) { onAuthError('claude'); return false; }
     if (transEngine === 'DEEPSEEK' && !deepseekApiKey) { onAuthError('deepseek'); return false; }
+    if (transEngine === 'CUSTOM_OPENAI' && (!customOpenaiBaseUrl || !customOpenaiModel)) { onAuthError('custom_openai'); return false; }
 
     // Request notification permission on first batch start
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -358,6 +368,7 @@ export const useTranslatePipeline = (
     if ((ocrEngine === 'GPT4O' || ocrEngine === 'GPT4O_MINI' || transEngine === 'GPT4O' || transEngine === 'GPT4O_MINI') && !openaiApiKey) { onAuthError('openai'); return false; }
     if ((ocrEngine === 'CLAUDE' || ocrEngine === 'CLAUDE_HAIKU' || transEngine === 'CLAUDE' || transEngine === 'CLAUDE_HAIKU') && !claudeApiKey) { onAuthError('claude'); return false; }
     if (transEngine === 'DEEPSEEK' && !deepseekApiKey) { onAuthError('deepseek'); return false; }
+    if (transEngine === 'CUSTOM_OPENAI' && (!customOpenaiBaseUrl || !customOpenaiModel)) { onAuthError('custom_openai'); return false; }
     return true;
   };
 
