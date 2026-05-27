@@ -150,7 +150,6 @@ const App: React.FC = () => {
 
   // Drag & Drop state
   const [isDragOverWindow, setIsDragOverWindow] = useState(false);
-  const dragCounter = useRef(0);
 
   // Track items that have already played their shake animation (one-shot)
   const [shakenItems, setShakenItems] = useState<Set<string>>(new Set());
@@ -215,8 +214,6 @@ const App: React.FC = () => {
   });
 
   const handleFilesSelect = async (files: File[]) => {
-    // Reset drag state in case it was triggered
-    dragCounter.current = 0;
     setIsDragOverWindow(false);
 
     const started = await pipelineFilesSelect(files);
@@ -245,48 +242,63 @@ const App: React.FC = () => {
   };
 
   // --- Global Drag & Drop Handlers ---
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Only show overlay for external file drags
-    if (e.dataTransfer.types.includes('Files') && e.dataTransfer.items.length > 0) {
-      dragCounter.current++;
-      setIsDragOverWindow(true);
-    }
-  };
+  // Use a window-level listener to detect ONLY external file drags.
+  // React synthetic drag events on the root div fire even during file input
+  // dialogs in some browsers, causing the blue overlay to appear incorrectly.
+  useEffect(() => {
+    let counter = 0;
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
+    const onDragEnter = (e: DragEvent) => {
+      // Only respond to external file drags (not internal DOM drags)
+      if (!e.dataTransfer?.types.includes('Files')) return;
+      // Ignore if the drag originated from within the page (e.g. file input)
+      if (e.relatedTarget) return;
+      counter++;
+      if (counter === 1) setIsDragOverWindow(true);
+    };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current--;
-    if (dragCounter.current <= 0) {
-      dragCounter.current = 0;
+    const onDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes('Files')) return;
+      e.preventDefault();
+    };
+
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes('Files')) return;
+      counter--;
+      if (counter <= 0) {
+        counter = 0;
+        setIsDragOverWindow(false);
+      }
+    };
+
+    const onDrop = (e: DragEvent) => {
+      counter = 0;
       setIsDragOverWindow(false);
-    }
-  };
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        e.preventDefault();
+        void handleFilesSelect(Array.from(e.dataTransfer.files));
+      }
+    };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current = 0;
-    setIsDragOverWindow(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      void handleFilesSelect(Array.from(e.dataTransfer.files));
-    }
-  };
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
 
-  // Safety: auto-dismiss drag overlay after 5 seconds in case events get lost
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [handleFilesSelect]);
+
+  // Safety: auto-dismiss drag overlay after 3 seconds
   useEffect(() => {
     if (!isDragOverWindow) return;
     const timeout = setTimeout(() => {
-      dragCounter.current = 0;
       setIsDragOverWindow(false);
-    }, 5000);
+    }, 3000);
     return () => clearTimeout(timeout);
   }, [isDragOverWindow]);
 
@@ -424,10 +436,6 @@ const App: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
     >
       
       {/* --- Global Drag & Drop Overlay --- */}
