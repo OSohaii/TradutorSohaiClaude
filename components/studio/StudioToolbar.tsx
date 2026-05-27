@@ -1,0 +1,119 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import {
+  ArrowLeftIcon,
+  Cog6ToothIcon,
+  BookOpenIcon,
+  ViewColumnsIcon,
+  Square3Stack3DIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
+import { ProcessedImage } from '../../types';
+
+interface StudioToolbarProps {
+  currentImage: ProcessedImage | null;
+  onGoToLibrary: () => void;
+  onGoToReader: () => void;
+  onOpenSettings: () => void;
+  onTogglePagesPanel: () => void;
+  onToggleRightPanel: () => void;
+  pagesPanelOpen: boolean;
+  rightPanelOpen: boolean;
+  hasDonePages: boolean;
+}
+
+const StudioToolbar: React.FC<StudioToolbarProps> = ({
+  currentImage,
+  onGoToLibrary,
+  onGoToReader,
+  onOpenSettings,
+  onTogglePagesPanel,
+  onToggleRightPanel,
+  pagesPanelOpen,
+  rightPanelOpen,
+  hasDonePages,
+}) => {
+  return (
+    <header className="h-11 flex items-center justify-between px-3 border-b border-white/5 bg-[#0a0a0f]/90 backdrop-blur-xl flex-shrink-0">
+      {/* Left: Back + Breadcrumb */}
+      <div className="flex items-center gap-2 min-w-0">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onGoToLibrary}
+          className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+          title="Voltar"
+        >
+          <ArrowLeftIcon className="w-4 h-4" />
+        </motion.button>
+
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-1 text-xs text-slate-500 truncate">
+          <span className="hover:text-slate-300 cursor-pointer transition-colors" onClick={onGoToLibrary}>
+            Projetos
+          </span>
+          <ChevronRightIcon className="w-3 h-3 flex-shrink-0" />
+          <span className="text-slate-300 truncate max-w-[160px] font-medium">
+            {currentImage?.fileName || 'Studio'}
+          </span>
+        </nav>
+      </div>
+
+      {/* Right: Actions */}
+      <div className="flex items-center gap-1.5">
+        {/* Toggle panels (mobile) */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onTogglePagesPanel}
+          className={`p-1.5 rounded-lg transition-all md:flex ${
+            pagesPanelOpen
+              ? 'bg-purple-500/15 text-purple-400'
+              : 'hover:bg-white/5 text-slate-400 hover:text-white'
+          }`}
+          title="Painel de paginas"
+        >
+          <Square3Stack3DIcon className="w-4 h-4" />
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onToggleRightPanel}
+          className={`p-1.5 rounded-lg transition-all ${
+            rightPanelOpen
+              ? 'bg-purple-500/15 text-purple-400'
+              : 'hover:bg-white/5 text-slate-400 hover:text-white'
+          }`}
+          title="Painel de edicao"
+        >
+          <ViewColumnsIcon className="w-4 h-4" />
+        </motion.button>
+
+        {hasDonePages && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onGoToReader}
+            className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white text-[10px] font-semibold rounded-lg transition-all shadow-lg shadow-purple-500/20 flex items-center gap-1"
+          >
+            <BookOpenIcon className="w-3.5 h-3.5" />
+            Ler
+          </motion.button>
+        )}
+
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onOpenSettings}
+          className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+          title="Configuracoes"
+        >
+          <Cog6ToothIcon className="w-4 h-4" />
+        </motion.button>
+      </div>
+    </header>
+  );
+};
+
+export default StudioToolbar;

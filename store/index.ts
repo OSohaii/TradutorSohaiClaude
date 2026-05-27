@@ -24,4 +24,7 @@ export type { Toast, ToastType, ToastState } from './useToastStore';
 export { useViewStore } from './useViewStore';
 export type { ViewState } from './useViewStore';
 
+export { useStudioStore } from './useStudioStore';
+export type { StudioState, RightPanelTab } from './useStudioStore';
+
 export { migrateLegacyLocalStorage } from './migrations';

@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Completely redesign StudioPage.tsx into a professional multi-panel manga editing workspace matching the reference layout: left navigation sidebar (narrow icon rail), pages panel (thumbnail grid), central canvas (MangaViewer integration), and right editor panel (layers/tools). Dark premium cyberpunk aesthetic with glassmorphism, neon purple/electric blue accents, and smooth animations. Must maintain the existing StudioPageProps interface for App.tsx compatibility.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create a new Zustand store at store/useStudioStore.ts to manage studio panel state: which panels are open/collapsed (leftSidebar, pagesPanel, rightPanel), active right panel tab ('editor'|'layers'|'history'), selected layer/bubble ID. This keeps the StudioPage component clean.",
     "Create component file components/studio/LeftSidebar.tsx - A narrow (~60px) vertical icon rail with navigation icons (Dashboard, Projects, Library, Chapters, Pages, Tasks, Team, Settings) using @heroicons/react. At bottom show current project info and user status. Dark glassmorphism background (bg-black/80 backdrop-blur-xl). Icons have neon purple hover/active states. Use framer-motion for subtle hover animations.",
