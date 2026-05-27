@@ -201,6 +201,7 @@ async def _run_gemini_ocr(
     keys: KeyResolver,
     source_language: str = "Japanese",
     target_language: str = "Portuguese (Brazil)",
+    glossary: list[dict[str, str]] | None = None,
 ) -> tuple[list[TextBubble], TokenUsage]:
     api_key = keys.for_gemini()
     model = _GEMINI_MODELS[plan.ocr_engine]
@@ -211,6 +212,7 @@ async def _run_gemini_ocr(
         skip_translation=plan.ocr_skip_translation,
         source_language=source_language,
         target_language=target_language,
+        glossary=glossary,
     )
 
 
@@ -220,6 +222,7 @@ async def _run_openai_ocr(
     keys: KeyResolver,
     source_language: str = "Japanese",
     target_language: str = "Portuguese (Brazil)",
+    glossary: list[dict[str, str]] | None = None,
 ) -> tuple[list[TextBubble], TokenUsage]:
     api_key = keys.for_openai()
     model = _OPENAI_MODELS[plan.ocr_engine]
@@ -230,6 +233,7 @@ async def _run_openai_ocr(
         skip_translation=plan.ocr_skip_translation,
         source_language=source_language,
         target_language=target_language,
+        glossary=glossary,
     )
 
 
@@ -238,6 +242,7 @@ async def _run_translation_step(
     plan: Plan,
     keys: KeyResolver,
     target_language: str = "Portuguese (Brazil)",
+    glossary: list[dict[str, str]] | None = None,
 ) -> tuple[list[TextBubble], TokenUsage | None]:
     engine = plan.translation_engine
     if engine == EngineId.GOOGLE:
@@ -253,6 +258,7 @@ async def _run_translation_step(
             bubbles,
             model=_GEMINI_MODELS[engine],
             api_key=keys.for_gemini(),
+            glossary=glossary,
         )
         return translated, tokens
     if _is_openai(engine):
@@ -261,6 +267,7 @@ async def _run_translation_step(
             model=_OPENAI_MODELS[engine],
             api_key=keys.for_openai(),
             target_language=target_language,
+            glossary=glossary,
         )
         return translated, tokens
     raise ProviderError(
@@ -279,6 +286,11 @@ async def run_pipeline(
     image_bytes = base64.b64decode(req.image_base64)
     plan = plan_pipeline(req)
 
+    # Convert glossary entries to list of dicts for providers
+    glossary: list[dict[str, str]] | None = None
+    if req.options.glossary:
+        glossary = [{"source": g.source, "target": g.target} for g in req.options.glossary]
+
     warnings: list[str] = []
     translated_image_b64: str | None = None
     cleaned_image_b64: str | None = None
@@ -293,7 +305,8 @@ async def run_pipeline(
         bubbles = list(req.bubbles)
         if bubbles:
             bubbles, translation_tokens = await _run_translation_step(
-                bubbles, plan, keys, target_language=req.options.target_language
+                bubbles, plan, keys, target_language=req.options.target_language,
+                glossary=glossary,
             )
         return PipelineResponse(
             bubbles=bubbles,
@@ -326,7 +339,7 @@ async def run_pipeline(
     # Step 1: OCR (and possibly translation, depending on the plan) plus the
     # optional cleaner — both run concurrently. Cleaner failure is a warning,
     # OCR failure is fatal (B1 fix vs the original Promise.all).
-    ocr_task = asyncio.create_task(_run_main_ocr(image_bytes, plan, req, keys))
+    ocr_task = asyncio.create_task(_run_main_ocr(image_bytes, plan, req, keys, glossary))
     cleaner_task: asyncio.Task[bytes] | None = None
     if plan.use_torii_cleaner and not plan.use_torii_full:
         cleaner_task = asyncio.create_task(_run_torii_cleaner(image_bytes, req, keys))
@@ -354,7 +367,8 @@ async def run_pipeline(
     # translate (e.g. GEMINI_PRO -> DEEPL, or GEMINI_PRO_FULL -> X disabled).
     if plan.needs_separate_translation and bubbles:
         bubbles, translation_tokens = await _run_translation_step(
-            bubbles, plan, keys, target_language=req.options.target_language
+            bubbles, plan, keys, target_language=req.options.target_language,
+            glossary=glossary,
         )
 
     return PipelineResponse(
@@ -378,6 +392,7 @@ async def _run_main_ocr(
     plan: Plan,
     req: PipelineRequest,
     keys: KeyResolver,
+    glossary: list[dict[str, str]] | None = None,
 ) -> tuple[list[TextBubble], TokenUsage | None, str | None]:
     """Returns (bubbles, ocr_tokens, translated_image_base64)."""
     source_language = req.options.source_language
@@ -389,9 +404,9 @@ async def _run_main_ocr(
         bubbles = await _run_ichigo(image_bytes, req, keys)
         return bubbles, None, None
     if _is_openai(plan.ocr_engine):
-        bubbles, tokens = await _run_openai_ocr(image_bytes, plan, keys, source_language, target_language)
+        bubbles, tokens = await _run_openai_ocr(image_bytes, plan, keys, source_language, target_language, glossary)
         return bubbles, tokens, None
-    bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys, source_language, target_language)
+    bubbles, tokens = await _run_gemini_ocr(image_bytes, plan, keys, source_language, target_language, glossary)
     return bubbles, tokens, None
 
 

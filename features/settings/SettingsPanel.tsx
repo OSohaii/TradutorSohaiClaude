@@ -20,6 +20,7 @@ import { useToastStore } from '../../store';
 import Toggle from '../../components/ui/Toggle';
 import { AVAILABLE_FONTS, FontOption, FontGroup } from '../../components/MangaViewer';
 import { fileToBase64 } from '../translator/useTranslatePipeline';
+import GlossaryPanel from './GlossaryPanel';
 
 const TORII_TRANSLATORS = [
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Rapido)' },
@@ -28,7 +29,7 @@ const TORII_TRANSLATORS = [
   { id: 'gpt-4o', name: 'GPT-4o (Premium)' },
 ];
 
-type TabId = 'engines' | 'fontes' | 'preferencias';
+type TabId = 'engines' | 'fontes' | 'preferencias' | 'glossario';
 
 interface Props {
   isOpen: boolean;
@@ -125,6 +126,7 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
     { id: 'engines', label: 'Engines' },
     { id: 'fontes', label: 'Fontes' },
     { id: 'preferencias', label: 'Preferencias' },
+    { id: 'glossario', label: 'Glossario' },
   ];
 
   return (
@@ -447,6 +449,11 @@ const SettingsPanel: React.FC<Props> = ({ isOpen, onClose, onOpenIchigoLogin }) 
                 />
               </div>
             </div>
+          )}
+
+          {/* Glossario Tab */}
+          {activeTab === 'glossario' && (
+            <GlossaryPanel />
           )}
         </div>
 

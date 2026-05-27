@@ -12,6 +12,8 @@ interface BubbleOverlayProps {
   hideBorder?: boolean;
   isTransparent?: boolean;
   showOriginalText?: boolean;
+  isSelected?: boolean;
+  onCtrlClick?: (bubbleId: string) => void;
   onUpdate?: (updatedBubble: TextBubble) => void;
   onEditStart?: (bubble: TextBubble | null) => void;
   onPaintToggle?: (bubbleId: string) => void;
@@ -34,6 +36,8 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
   hideBorder,
   isTransparent,
   showOriginalText,
+  isSelected,
+  onCtrlClick,
   onUpdate,
   onEditStart,
   onPaintToggle,
@@ -263,6 +267,8 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
       zIndex: isCurrentlyEditingText ? 50 : 10,
       boxShadow: isCurrentlyEditingText ? '0 0 0 4000px rgba(0,0,0,0.4)' : (isEditing ? '0 4px 12px rgba(0,0,0,0.2)' : 'none'),
       transform: effectiveRotation ? `rotate(${effectiveRotation}deg)` : undefined,
+      outline: isSelected ? '2px solid #3b82f6' : undefined,
+      outlineOffset: isSelected ? '1px' : undefined,
     };
 
     if (isCurrentlyEditingText) {
@@ -324,6 +330,7 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
       onClick={(e) => {
         e.stopPropagation();
         if (isPaintSelectMode && onPaintToggle) onPaintToggle(bubble.id);
+        else if ((e.ctrlKey || e.metaKey) && onCtrlClick) onCtrlClick(bubble.id);
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -333,6 +340,11 @@ const BubbleOverlay: React.FC<BubbleOverlayProps> = ({
       style={containerStyle}
     >
       {content}
+
+      {/* Confidence indicator */}
+      {bubble.confidence != null && bubble.confidence < 0.7 && !isPaintSelectMode && (
+        <div className="absolute top-0.5 right-0.5 w-2 h-2 bg-orange-500 rounded-full z-30" title={`Confianca: ${Math.round(bubble.confidence * 100)}%`} />
+      )}
 
       {/* Resize Handles */}
       {isEditing && !isPaintSelectMode && !isCurrentlyEditingText && (

@@ -1,4 +1,5 @@
 import { useAuthStore, useTranslatorStore, useSessionStore } from '../../store';
+import { useGlossaryStore } from '../../store';
 import { useTokenTracker } from './useTokenTracker';
 import { planPipeline } from './planPipeline';
 import { performIchigoLogout } from './ichigoLogout';
@@ -88,6 +89,12 @@ export const useTranslatePipeline = (
     openai: openaiApiKey || undefined,
   });
 
+  const buildGlossary = (): { source: string; target: string }[] | undefined => {
+    const entries = useGlossaryStore.getState().entries;
+    if (entries.length === 0) return undefined;
+    return entries.map(e => ({ source: e.source, target: e.target }));
+  };
+
   const runPipeline = async (
     base64: string,
   ): Promise<{ bubbles: TextBubble[]; translatedImageUrl?: string }> => {
@@ -111,6 +118,7 @@ export const useTranslatePipeline = (
             targetLangCode,
             ichigoModel,
             sourceLanguage,
+            glossary: buildGlossary(),
           },
         },
         buildByok(),
@@ -130,6 +138,7 @@ export const useTranslatePipeline = (
               targetLangCode,
               ichigoModel,
               sourceLanguage,
+              glossary: buildGlossary(),
             },
           },
           buildByok(),
@@ -169,6 +178,7 @@ export const useTranslatePipeline = (
           targetLangCode,
           ichigoModel,
           sourceLanguage,
+          glossary: buildGlossary(),
         },
         phase: 'ocr-only',
       },
@@ -193,6 +203,7 @@ export const useTranslatePipeline = (
           targetLangCode,
           ichigoModel,
           sourceLanguage,
+          glossary: buildGlossary(),
         },
         phase: 'translate-only',
         bubbles,
@@ -263,6 +274,10 @@ export const useTranslatePipeline = (
   const handleRetranslate = async () => {
     if (!currentImage) return;
     const imageId = currentImage.id;
+
+    // Save current version before retranslation
+    useSessionStore.getState().saveVersion(imageId);
+
     updateImageStateInStore(imageId, {
       status: 'processing',
       bubbles: [],

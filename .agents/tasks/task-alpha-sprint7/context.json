@@ -1,0 +1,32 @@
+{
+  "project_type": "Vite React SPA (frontend) + FastAPI BFF (backend) - Manga translator",
+  "language": "TypeScript (frontend), Python (backend)",
+  "build_system": "Vite + npm for frontend, FastAPI for backend",
+  "test_framework": "Vitest for frontend (not required for this sprint)",
+  "build_command": "npm run typecheck && npm run build",
+  "test_command": "npm run typecheck",
+  "verification_instructions": "Run npm run typecheck && npm run build to verify no type errors and clean build",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install in root directory",
+  "environment_constraints": "No tests required per user rules. Must pass typecheck and build before push.",
+  "contribution_requirements": "Create branch feature/alpha-sprint7 from current HEAD. Commit, push, open PR against main. Do NOT create version tag.",
+  "key_patterns": "Zustand stores with persist middleware in store/, React components in components/, feature modules in features/, backend Pydantic schemas in backend/app/schemas/, providers in backend/app/providers/. CamelModel base class for Pydantic models. PipelineOptions carries options from frontend to backend.",
+  "relevant_files": [
+    "store/index.ts",
+    "store/useSessionStore.ts",
+    "store/useTranslatorStore.ts",
+    "features/settings/SettingsPanel.tsx",
+    "features/translator/useTranslatePipeline.ts",
+    "services/api/pipelineApi.ts",
+    "components/MangaViewer.tsx",
+    "components/BubbleOverlay.tsx",
+    "components/ViewerToolbar.tsx",
+    "backend/app/schemas/pipeline.py",
+    "backend/app/schemas/common.py",
+    "backend/app/providers/gemini.py",
+    "backend/app/providers/openai.py",
+    "backend/app/services/pipeline.py",
+    "types.ts"
+  ],
+  "directory_structure": "Root: Vite React app with store/, features/, components/, services/, types.ts. Backend: backend/app/ with routers/, providers/, schemas/, services/."
+}

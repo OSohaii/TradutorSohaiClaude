@@ -31,6 +31,7 @@ export interface PipelineOptions {
   targetLangCode?: string;
   ichigoModel?: string;
   sourceLanguage?: string;
+  glossary?: { source: string; target: string }[];
 }
 
 export interface PipelineRequest {

@@ -31,6 +31,13 @@ import { revokeIfBlob, revokeImageUrls } from '../services/blobUrls';
  * `onBubbleUpdate`, which silently ignored adds and deletes).
  */
 const MAX_BUBBLE_SNAPSHOTS = 30;
+const MAX_VERSION_ENTRIES = 5;
+
+export interface VersionEntry {
+  timestamp: number;
+  bubbles: TextBubble[];
+  translatedImageUrl?: string;
+}
 
 export interface BubbleHistoryEntry {
   /** Stack of past bubble arrays; index 0 = oldest. */
@@ -50,6 +57,8 @@ export interface SessionState {
   history: ProcessedImage[];
   /** Per-image bubble undo/redo stack, keyed by image id. */
   bubbleHistory: Record<string, BubbleHistoryEntry>;
+  /** Per-image translation version history (in-memory only, not persisted). */
+  translationVersions: Record<string, VersionEntry[]>;
 
   // ---- Direct setters ----
   setCurrentImage: (img: ProcessedImage | null) => void;
@@ -104,6 +113,17 @@ export interface SessionState {
    * Walks history one step forward. Returns true if the cursor moved.
    */
   redoBubbles: () => boolean;
+
+  // ---- Translation version history ----
+  /**
+   * Saves the current translation state (bubbles + translatedImageUrl) for the
+   * given image. Capped at MAX_VERSION_ENTRIES per image (FIFO). In-memory only.
+   */
+  saveVersion: (imageId: string) => void;
+  /**
+   * Restores a previously saved translation version by index.
+   */
+  restoreVersion: (imageId: string, index: number) => void;
 }
 
 /**
@@ -124,6 +144,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   currentImage: null,
   history: [],
   bubbleHistory: {},
+  translationVersions: {},
 
   setCurrentImage: img => set({ currentImage: img }),
 
@@ -398,5 +419,47 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       },
     }));
     return true;
+  },
+
+  saveVersion: (imageId) => {
+    const state = get();
+    const img = state.history.find(h => h.id === imageId);
+    if (!img || img.bubbles.length === 0) return;
+    set(s => {
+      const existing = s.translationVersions[imageId] || [];
+      const entry: VersionEntry = {
+        timestamp: Date.now(),
+        bubbles: [...img.bubbles],
+        translatedImageUrl: img.translatedImageUrl,
+      };
+      const updated = [...existing, entry];
+      const trimmed = updated.length > MAX_VERSION_ENTRIES
+        ? updated.slice(updated.length - MAX_VERSION_ENTRIES)
+        : updated;
+      return {
+        translationVersions: {
+          ...s.translationVersions,
+          [imageId]: trimmed,
+        },
+      };
+    });
+  },
+
+  restoreVersion: (imageId, index) => {
+    const state = get();
+    const versions = state.translationVersions[imageId];
+    if (!versions || !versions[index]) return;
+    const version = versions[index];
+    set(s => ({
+      history: s.history.map(img =>
+        img.id === imageId
+          ? { ...img, bubbles: [...version.bubbles], translatedImageUrl: version.translatedImageUrl }
+          : img,
+      ),
+      currentImage:
+        s.currentImage?.id === imageId
+          ? { ...s.currentImage, bubbles: [...version.bubbles], translatedImageUrl: version.translatedImageUrl }
+          : s.currentImage,
+    }));
   },
 }));

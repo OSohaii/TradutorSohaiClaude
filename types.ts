@@ -52,6 +52,7 @@ export interface TextBubble {
   scale?: number; // Multiplier: 1.0 = 100%, 0.8 = 80%
   color?: string; // Cor do texto, ex: '#000000'
   rotation?: number; // Rotação em graus
+  confidence?: number; // 0-1 confidence from OCR
 }
 
 export interface TranslationResult {

@@ -37,6 +37,7 @@ _BUBBLE_SCHEMA: dict[str, Any] = {
                         "type": "ARRAY",
                         "items": {"type": "INTEGER"},
                     },
+                    "confidence": {"type": "NUMBER"},
                 },
                 "required": ["originalText", "translatedText", "box_2d"],
             },
@@ -167,12 +168,20 @@ def _bubble_from_raw(raw: dict, index: int) -> TextBubble | None:
         bubble_type = "sfx"
         display = re.sub(r"^\[?SFX:\s*", "", display, flags=re.IGNORECASE).rstrip("]").strip()
 
+    confidence = raw.get("confidence")
+    if confidence is not None:
+        try:
+            confidence = float(confidence)
+        except (TypeError, ValueError):
+            confidence = None
+
     return TextBubble(
         id=f"bubble-{index}-{int(asyncio.get_event_loop().time() * 1000)}",
         original_text=raw.get("originalText", ""),
         translated_text=display,
         type=bubble_type,
         box=BoundingBox(ymin=ymin, xmin=xmin, ymax=ymax, xmax=xmax),
+        confidence=confidence,
     )
 
 
@@ -184,10 +193,16 @@ async def process_manga_page(
     skip_translation: bool,
     source_language: str = "Japanese",
     target_language: str = "Portuguese (Brazil)",
+    glossary: list[dict[str, str]] | None = None,
 ) -> tuple[list[TextBubble], TokenUsage]:
     """Run a single OCR (or OCR+translate) pass over an image."""
     client = genai.Client(api_key=api_key)
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    ocr_text = _ocr_prompt(skip_translation, source_language, target_language)
+    if glossary and not skip_translation:
+        terms = ", ".join(f"{g['source']} = {g['target']}" for g in glossary)
+        ocr_text += f"\n\nGLOSSARY - Use these EXACT translations for the following terms: {terms}"
 
     async def _call():
         return await asyncio.to_thread(
@@ -195,7 +210,7 @@ async def process_manga_page(
             model=model,
             contents=[
                 gtypes.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-                _ocr_prompt(skip_translation, source_language, target_language),
+                ocr_text,
             ],
             config=gtypes.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -238,6 +253,7 @@ async def translate_bubbles(
     *,
     model: str,
     api_key: str,
+    glossary: list[dict[str, str]] | None = None,
 ) -> tuple[list[TextBubble], TokenUsage]:
     if not bubbles:
         return [], TokenUsage(model=model)
@@ -246,6 +262,11 @@ async def translate_bubbles(
     lines = "\n".join(
         f"Line {i}: {b.original_text or b.translated_text}" for i, b in enumerate(bubbles)
     )
+
+    glossary_instruction = ""
+    if glossary:
+        terms = ", ".join(f"{g['source']} = {g['target']}" for g in glossary)
+        glossary_instruction = f"\n6. GLOSSARY - Use these EXACT translations for the following terms: {terms}"
 
     prompt = f"""Translate the following manga text lines to Portuguese (Brazil).
 
@@ -256,7 +277,7 @@ STRICT RULES:
 4. FANTASY & RPG TERMINOLOGY: keep Skill / Attack / Rank / Title proper nouns
    IN ENGLISH. Translate the sentence around them, not the term itself.
    Ex: "Use Fireball now!" -> "Use Fireball agora!" (NOT "Bola de Fogo agora!").
-5. Return exactly one translation per line in the JSON array, in the same order.
+5. Return exactly one translation per line in the JSON array, in the same order.{glossary_instruction}
 
 Input:
 {lines}"""

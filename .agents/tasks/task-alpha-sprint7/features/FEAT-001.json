@@ -1,0 +1,76 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Sprint 7 - Persistent Glossary, Batch Bubble Editing, Version History, Confidence Indicator. All four features implemented together in a single coherent commit.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Create branch: git checkout -b feature/alpha-sprint7 from current HEAD (feature/alpha-sprint6)",
+
+    "Step 2 - Glossary Store: Create store/useGlossaryStore.ts with Zustand persisted store containing entries: { id: string, source: string, target: string, caseSensitive: boolean }[], and actions: addEntry, removeEntry, updateEntry, clearAll, importCSV, exportCSV. Use zustand persist middleware with localStorage key 'glossary-store'.",
+
+    "Step 3 - Export Glossary from barrel: Add useGlossaryStore export to store/index.ts",
+
+    "Step 4 - GlossaryPanel UI: Create features/settings/GlossaryPanel.tsx - a panel with a table showing source/target columns, add entry form, edit/delete buttons, import CSV button (file input), export CSV button. Include case-sensitive toggle per entry.",
+
+    "Step 5 - Add Glossary tab to SettingsPanel: In features/settings/SettingsPanel.tsx, add a 4th tab 'Glossario' to the TabId type and tabs array. Render GlossaryPanel when activeTab === 'glossario'.",
+
+    "Step 6 - Backend glossary support: In backend/app/schemas/pipeline.py, add 'glossary: list[GlossaryEntry] = []' to PipelineOptions. Create GlossaryEntry as a CamelModel with source: str, target: str fields.",
+
+    "Step 7 - Gemini provider glossary: In backend/app/providers/gemini.py, modify process_manga_page and translate_bubbles to accept an optional glossary parameter (list of dicts with source/target). When non-empty, append glossary instructions to the prompt: 'GLOSSARY - Use these EXACT translations for the following terms: [source] = [target], ...'",
+
+    "Step 8 - OpenAI provider glossary: In backend/app/providers/openai.py, modify process_manga_page and translate_bubbles to accept an optional glossary parameter. When non-empty, append the same glossary instructions to the prompt.",
+
+    "Step 9 - Pipeline service glossary passthrough: In backend/app/services/pipeline.py, pass req.options.glossary to the Gemini and OpenAI OCR/translate functions (_run_gemini_ocr, _run_openai_ocr, _run_translation_step).",
+
+    "Step 10 - Frontend PipelineOptions glossary: In services/api/pipelineApi.ts, add 'glossary?: { source: string; target: string }[]' to PipelineOptions interface.",
+
+    "Step 11 - useTranslatePipeline glossary integration: In features/translator/useTranslatePipeline.ts, import useGlossaryStore. In the runPipeline and runPipelineOcrOnly and runPipelineTranslateOnly internal functions, read glossary entries from useGlossaryStore.getState().entries and pass them as options.glossary in the pipeline request.",
+
+    "Step 12 - Batch Bubble Editing: In components/MangaViewer.tsx, add state: selectedBubbleIds: string[]. Add Ctrl+Click handler on BubbleOverlay to toggle selection (add/remove from selectedBubbleIds). Selected bubbles get a blue ring highlight (pass isSelected prop to BubbleOverlay). When 2+ bubbles selected, show a BatchBubbleToolbar component.",
+
+    "Step 13 - BubbleOverlay multi-select: Add optional props to BubbleOverlay: isSelected?: boolean, onCtrlClick?: (bubbleId: string) => void. When isSelected, show a blue ring (ring-2 ring-blue-500). On click with ctrl/meta key pressed, call onCtrlClick instead of normal click behavior.",
+
+    "Step 14 - BatchBubbleToolbar component: Create components/BatchBubbleToolbar.tsx. Shows when 2+ bubbles selected. Contains: font selector dropdown, bold toggle, italic toggle, font size +/- buttons, delete all button. Each action loops through selectedBubbleIds, calls pushBubbleSnapshot once, then updates each bubble. Takes props: selectedIds, bubbles, allFonts, onUpdate, onDelete, onClear (clears selection).",
+
+    "Step 15 - Version History: In store/useSessionStore.ts, add translationVersions: Record<string, { timestamp: number, bubbles: TextBubble[], translatedImageUrl?: string }[]> to SessionState. Add actions: saveVersion(imageId), restoreVersion(imageId, index). saveVersion captures current bubbles/translatedImageUrl, max 5 per image (FIFO). This is in-memory only (not persisted).",
+
+    "Step 16 - Save version before retranslation: In features/translator/useTranslatePipeline.ts, before handleRetranslate clears the image state, call useSessionStore.getState().saveVersion(imageId) to preserve the current translation.",
+
+    "Step 17 - Version History UI: In components/MangaViewer.tsx (or a small sub-component), add a 'Versoes' dropdown button in the toolbar area (only visible when versions exist for current image). Clicking a version entry calls restoreVersion to swap bubbles back. Show timestamp formatted as HH:mm.",
+
+    "Step 18 - Confidence Indicator type: In types.ts, add optional 'confidence?: number' field (0-1) to TextBubble interface.",
+
+    "Step 19 - Backend confidence field: In backend/app/schemas/common.py, add optional confidence: float | None = None to TextBubble model.",
+
+    "Step 20 - BubbleOverlay confidence dot: In components/BubbleOverlay.tsx, when bubble.confidence is defined and < 0.7, show a small orange dot (w-2 h-2 bg-orange-500 rounded-full) at the top-right corner of the bubble.",
+
+    "Step 21 - Gemini OCR confidence prompt: In backend/app/providers/gemini.py, add 'confidence' (type: NUMBER, 0-1) to the _BUBBLE_SCHEMA items properties and update _bubble_from_raw to extract it.",
+
+    "Step 22 - OpenAI OCR confidence prompt: In backend/app/providers/openai.py, add confidence field to the OCR prompt JSON schema request and update _bubble_from_raw to extract it.",
+
+    "Step 23 - Run npm run typecheck && npm run build to verify everything compiles cleanly.",
+
+    "Step 24 - Commit all changes with message 'feat: sprint 7 - glossary, batch editing, version history, confidence indicator'. Push to origin feature/alpha-sprint7."
+  ],
+  "acceptance_criteria": [
+    "npm run typecheck passes with no errors",
+    "npm run build succeeds",
+    "New store/useGlossaryStore.ts exists with persist middleware",
+    "SettingsPanel has a 4th tab 'Glossario' rendering GlossaryPanel",
+    "Backend PipelineOptions includes glossary field",
+    "Gemini and OpenAI providers accept and use glossary in prompts",
+    "useTranslatePipeline passes glossary entries to pipeline request",
+    "MangaViewer supports Ctrl+Click multi-select with blue highlight",
+    "BatchBubbleToolbar appears when 2+ bubbles selected",
+    "useSessionStore has translationVersions with saveVersion/restoreVersion",
+    "Version history dropdown shows in MangaViewer toolbar when versions exist",
+    "TextBubble type has optional confidence field",
+    "BubbleOverlay shows orange dot when confidence < 0.7",
+    "Branch feature/alpha-sprint7 is pushed to origin"
+  ],
+  "verification": [
+    "npm run typecheck && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

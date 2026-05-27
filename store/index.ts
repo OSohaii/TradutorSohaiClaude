@@ -13,12 +13,15 @@ export { useFontsStore } from './useFontsStore';
 export type { StoredFont } from './useFontsStore';
 
 export { useSessionStore } from './useSessionStore';
-export type { SessionState } from './useSessionStore';
+export type { SessionState, VersionEntry } from './useSessionStore';
 
 export { useLibraryStore } from './useLibraryStore';
 export type { LibraryStoreState } from './useLibraryStore';
 
 export { useToastStore } from './useToastStore';
 export type { Toast, ToastType, ToastState } from './useToastStore';
+
+export { useGlossaryStore } from './useGlossaryStore';
+export type { GlossaryEntry, GlossaryState } from './useGlossaryStore';
 
 export { migrateLegacyLocalStorage } from './migrations';

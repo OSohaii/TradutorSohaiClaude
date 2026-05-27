@@ -2,10 +2,12 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ProcessedImage, ViewMode, TextBubble } from '../types';
 import BubbleOverlay from './BubbleOverlay';
+import BatchBubbleToolbar from './BatchBubbleToolbar';
 import ViewerToolbar from './ViewerToolbar';
 import ComparisonSlider from './ComparisonSlider';
 import ShortcutsOverlay from './ui/ShortcutsOverlay';
 import { useSessionStore } from '../store';
+import { VersionEntry } from '../store/useSessionStore';
 import { useViewerShortcuts } from '../features/viewer/useViewerShortcuts';
 import { useSwipeNavigation } from '../features/viewer/useSwipeNavigation';
 import { usePinchZoom } from '../features/viewer/usePinchZoom';
@@ -26,6 +28,7 @@ import {
   ExclamationTriangleIcon,
   ChatBubbleLeftRightIcon,
   ArrowsRightLeftIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 
 interface MangaViewerProps {
@@ -136,6 +139,14 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
   const [editingBubbleId, setEditingBubbleId] = useState<string | null>(null);
   const [calculatedFontSizes, setCalculatedFontSizes] = useState<Record<string, number>>({});
 
+  // Multi-select state for batch editing
+  const [selectedBubbleIds, setSelectedBubbleIds] = useState<string[]>([]);
+
+  // Version history
+  const [showVersionMenu, setShowVersionMenu] = useState(false);
+  const versions = useSessionStore(s => s.translationVersions[image.id] || []) as VersionEntry[];
+  const restoreVersion = useSessionStore(s => s.restoreVersion);
+
   // Bubble undo/redo lives in the session store now (B8/B9 fix in
   // PR #8). The viewer reads `canUndo`/`canRedo` reactively and calls
   // `pushSnapshot()` before each mutation. Pre-PR #8 history was
@@ -238,6 +249,15 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     pushSnapshot();
   };
 
+  // Ctrl+Click multi-select handler
+  const handleCtrlClick = (bubbleId: string) => {
+    setSelectedBubbleIds(prev =>
+      prev.includes(bubbleId)
+        ? prev.filter(id => id !== bubbleId)
+        : [...prev, bubbleId],
+    );
+  };
+
   // Undo / Redo: thin wrappers ao redor do store (que substitui
   // `image.bubbles` por completo, então add/delete são reversíveis).
   const handleUndo = () => {
@@ -307,6 +327,7 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
     setIsEditingMode(isOcrDone); 
     setIsPaintMode(false);
     setEditingBubbleId(null);
+    setSelectedBubbleIds([]);
   }, [image.id, isOcrDone]);
 
   useEffect(() => {
@@ -491,6 +512,36 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                     <ArrowsRightLeftIcon className="w-5 h-5" />
                   </button>
                 )}
+                {/* Version History Dropdown */}
+                {versions.length > 0 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVersionMenu(!showVersionMenu)}
+                      className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg"
+                      title="Versoes anteriores"
+                    >
+                      <ClockIcon className="w-5 h-5" />
+                    </button>
+                    {showVersionMenu && (
+                      <div className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[70] min-w-[160px] py-1">
+                        <div className="px-3 py-1.5 text-[10px] text-slate-500 font-bold uppercase">Versoes</div>
+                        {versions.map((v, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              restoreVersion(image.id, idx);
+                              setShowVersionMenu(false);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-700 hover:text-white"
+                          >
+                            {new Date(v.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            <span className="ml-2 text-slate-500">({v.bubbles.length} baloes)</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="h-6 w-px bg-slate-700 mx-1"></div>
                 <button onClick={() => { setIsPaintMode(!isPaintMode); setIsEditingMode(false); setIsAddingBubble(false); }} className={`p-2 rounded-lg ${isPaintMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`} title="Pintar (Whiteout)">
                   <PaintBrushIcon className="w-5 h-5" />
@@ -631,6 +682,8 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
                     hideBorder={hideBubbleBorders}
                     isTransparent={isBubbleTransparent}
                     showOriginalText={showOriginalText || isOcrDone}
+                    isSelected={selectedBubbleIds.includes(bubble.id)}
+                    onCtrlClick={handleCtrlClick}
                     onUpdate={onBubbleUpdate}
                     onEditStart={startEditingBubble}
                     onDelete={onBubbleDelete}
@@ -701,6 +754,19 @@ const MangaViewer: React.FC<MangaViewerProps> = ({
           onBubbleUpdate={onBubbleUpdate}
           onBubbleDelete={onBubbleDelete}
           startEditingBubble={startEditingBubble}
+        />
+      )}
+
+      {/* Batch Bubble Toolbar */}
+      {selectedBubbleIds.length >= 2 && onBubbleUpdate && onBubbleDelete && (
+        <BatchBubbleToolbar
+          selectedIds={selectedBubbleIds}
+          bubbles={image.bubbles}
+          allFonts={allFonts}
+          onUpdate={onBubbleUpdate}
+          onDelete={onBubbleDelete}
+          onClear={() => setSelectedBubbleIds([])}
+          pushSnapshot={saveToHistory}
         />
       )}
 
