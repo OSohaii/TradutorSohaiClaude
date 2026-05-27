@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "refactor",
   "description": "Extract Toolbar, Download, and Shortcuts from MangaViewer.tsx into separate files to reduce the 1065-line component.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Create features/viewer/useViewerShortcuts.ts: extract the useEffect keyboard handler from MangaViewer (the one with handleKeyDown for ESC, Ctrl+B, Ctrl+I, Delete, +/-, Tab, Ctrl+Z, Ctrl+Shift+Z). It should accept params: { activeBubble, editingBubbleId, isEditingMode, isAddingBubble, onBubbleUpdate, onBubbleDelete, calculatedFontSizes, copiedStyle, navigateBubble, copyStyle, pasteStyle, saveToHistory, undoBubbles, redoBubbles, setEditingBubbleId, setIsAddingBubble, setNewBubbleStart }. Return nothing (it is a side-effect hook).",
     "2. Create features/viewer/downloadCanvas.ts: extract the `handleDownload` function as a standalone utility. It should accept params: { image: ProcessedImage, imgElement: HTMLImageElement, canvasElement: HTMLCanvasElement | null, defaultFont?: string, globalBold: boolean, globalItalic: boolean, globalBubbleScale: number, isBubbleTransparent: boolean, showTextStroke: boolean, calculatedFontSizes: Record<string, number> }. Return a Promise<void>.",
@@ -24,5 +24,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "MangaViewer.tsx reduced from 1086 to 603 lines. All three extractions successful. Icons XMarkIcon, CheckIcon, TrashIcon, SparklesIcon, ArrowsPointingOutIcon, SunIcon, Bars3BottomLeftIcon, Bars3Icon, Bars3BottomRightIcon, ArrowsPointingInIcon, AdjustmentsVerticalIcon, DocumentDuplicateIcon, ClipboardDocumentIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, MinusIcon, PlusIcon were removed from MangaViewer imports. ChevronLeftIcon and ChevronRightIcon remain because they are used in the top header bar navigation."
 }
