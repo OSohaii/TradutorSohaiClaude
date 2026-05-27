@@ -44,6 +44,9 @@ export interface TranslatorState {
    */
   autoTranslate: boolean;
 
+  /** Whether the desktop sidebar is collapsed to icon-only mode. */
+  sidebarCollapsed: boolean;
+
   // ---- Actions ----
   setOcrEngine: (v: EngineId) => void;
   setTransEngine: (v: EngineId) => void;
@@ -64,6 +67,7 @@ export interface TranslatorState {
   setToriiInpaintOnly: (v: boolean) => void;
   setUseToriiForCleaning: (v: boolean) => void;
   setAutoTranslate: (v: boolean) => void;
+  setSidebarCollapsed: (v: boolean) => void;
 }
 
 /**
@@ -94,6 +98,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       toriiInpaintOnly: false,
       useToriiForCleaning: false,
       autoTranslate: true,
+      sidebarCollapsed: false,
 
       setOcrEngine: v => set({ ocrEngine: v }),
       setTransEngine: v => set({ transEngine: v }),
@@ -114,6 +119,7 @@ export const useTranslatorStore = create<TranslatorState>()(
       setToriiInpaintOnly: v => set({ toriiInpaintOnly: v }),
       setUseToriiForCleaning: v => set({ useToriiForCleaning: v }),
       setAutoTranslate: v => set({ autoTranslate: v }),
+      setSidebarCollapsed: v => set({ sidebarCollapsed: v }),
     }),
     {
       name: 'mangalens-translator',
