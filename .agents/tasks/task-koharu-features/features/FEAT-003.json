@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Add Lama Cleaner inpainting integration - a pipeline step that sends the image + text region masks to a Lama Cleaner endpoint to produce a cleaned version of the manga page (text removed). The cleanedImageBase64 field already exists in the PipelineResponse type.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Backend provider: Create backend/app/providers/lama_cleaner.py. Implement an async function inpaint(image_bytes: bytes, mask_bytes: bytes, lama_url: str) -> bytes that POSTs to {lama_url}/inpaint with multipart form data (image file + mask file). The mask should be a binary image where white = areas to inpaint (text regions). Return the cleaned image bytes. Include retry logic and error classification.",
+    "Step 2 - Backend schemas: Add inpainting-related fields to PipelineRequest or a new InpaintConfig model in backend/app/schemas/pipeline.py: InpaintConfig with enabled: bool, lama_url: str (default 'http://localhost:8080').",
+    "Step 3 - Backend pipeline service: Update backend/app/services/pipeline.py to optionally run the Lama Cleaner inpainting step. After OCR produces bubbles with bounding boxes, generate a mask image (white rectangles at each bubble's bounding box coordinates on a black background) and call lama_cleaner.inpaint(). Set cleaned_image_b64 in the response. This runs as an alternative to the Torii cleaner. Import pillow or use a pure-python approach to generate the mask.",
+    "Step 4 - Backend requirements: Add 'Pillow' to backend/requirements.txt (needed for mask generation).",
+    "Step 5 - Backend deps: Add lama_url field to Byok or pass it through the pipeline request's inpaint config. Add X-Lama-Url header extraction to deps.py for user-configurable URL override.",
+    "Step 6 - Frontend types: No change needed - cleanedImageBase64 already exists in PipelineResponse.",
+    "Step 7 - Frontend store: Add inpaintEnabled (boolean, default false) and lamaCleanerUrl (string, default 'http://localhost:8080') to useTranslatorStore.ts with setters.",
+    "Step 8 - Frontend API client: Add X-Lama-Url header to byokHeaders() when lamaCleanerUrl is configured.",
+    "Step 9 - Frontend pipeline: Update pipelineApi.ts PipelineRequest type to include inpaint?: { enabled: boolean; lamaUrl?: string }. Update useTranslatePipeline.ts to pass inpaint config in the pipeline request when enabled.",
+    "Step 10 - Frontend settings: Add an 'Inpainting' section to the SettingsPanel (features/settings/SettingsPanel.tsx) with a toggle for enabling inpainting and a text input for the Lama Cleaner URL. Alternatively, create a small InpaintSettingsSection component.",
+    "Step 11 - Frontend App.tsx: Add the inpainting toggle to the sidebar (near the Torii cleaning toggle) with a paint brush icon. When inpainting is enabled and Torii cleaning is also enabled, show a warning that only one can be active (prefer inpainting or let user choose)."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes",
+    "npx vitest run passes",
+    "npx vite build succeeds",
+    "backend/app/providers/lama_cleaner.py exists with inpaint() function",
+    "InpaintConfig model exists in backend schemas",
+    "Pipeline service generates mask from bounding boxes and calls Lama Cleaner when enabled",
+    "Frontend has toggle for inpainting in sidebar/settings",
+    "Frontend sends inpaint config in pipeline request"
+  ],
+  "verification": [
+    "npx vitest run",
+    "npx tsc --noEmit",
+    "npx vite build"
+  ],
+  "blocked_reason": null,
+  "findings": "All 28 tests pass, TypeScript compiles cleanly, vite build succeeds. Lama Cleaner inpainting runs after OCR (needs bounding boxes for mask generation), unlike Torii cleaner which runs concurrently. Mutual exclusion between Torii cleaner and Lama inpaint implemented in both sidebar and settings panel."
+}

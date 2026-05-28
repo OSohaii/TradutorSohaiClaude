@@ -1,0 +1,7 @@
+{
+  "task_id": "task-koharu-features",
+  "task_description": "Implement Koharu-inspired features for MangaLens: Claude/DeepSeek translation engines, OpenAI-compatible custom endpoint, Lama Cleaner inpainting, and PSD export with editable layers.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

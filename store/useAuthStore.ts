@@ -33,6 +33,17 @@ export interface AuthState {
   // OpenAI BYOK
   openaiApiKey: string;
 
+  // Claude (Anthropic) BYOK
+  claudeApiKey: string;
+
+  // DeepSeek BYOK
+  deepseekApiKey: string;
+
+  // Custom OpenAI-compatible endpoint
+  customOpenaiApiKey: string;
+  customOpenaiBaseUrl: string;
+  customOpenaiModel: string;
+
   // ---- Actions ----
   setIchigoEmail: (v: string) => void;
   setIchigoToken: (v: string | null) => void;
@@ -57,6 +68,11 @@ export interface AuthState {
   setGeminiApiKey: (v: string) => void;
   setDeepLKey: (v: string) => void;
   setOpenaiApiKey: (v: string) => void;
+  setClaudeApiKey: (v: string) => void;
+  setDeepseekApiKey: (v: string) => void;
+  setCustomOpenaiApiKey: (v: string) => void;
+  setCustomOpenaiBaseUrl: (v: string) => void;
+  setCustomOpenaiModel: (v: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -72,6 +88,11 @@ export const useAuthStore = create<AuthState>()(
       geminiApiKey: '',
       deepLKey: '',
       openaiApiKey: '',
+      claudeApiKey: '',
+      deepseekApiKey: '',
+      customOpenaiApiKey: '',
+      customOpenaiBaseUrl: '',
+      customOpenaiModel: '',
 
       setIchigoEmail: v => set({ ichigoEmail: v }),
       setIchigoToken: v => set({ ichigoToken: v }),
@@ -110,6 +131,11 @@ export const useAuthStore = create<AuthState>()(
       setGeminiApiKey: v => set({ geminiApiKey: v }),
       setDeepLKey: v => set({ deepLKey: v }),
       setOpenaiApiKey: v => set({ openaiApiKey: v }),
+      setClaudeApiKey: v => set({ claudeApiKey: v }),
+      setDeepseekApiKey: v => set({ deepseekApiKey: v }),
+      setCustomOpenaiApiKey: v => set({ customOpenaiApiKey: v }),
+      setCustomOpenaiBaseUrl: v => set({ customOpenaiBaseUrl: v }),
+      setCustomOpenaiModel: v => set({ customOpenaiModel: v }),
     }),
     {
       name: 'mangalens-auth',
@@ -130,6 +156,11 @@ export const useAuthStore = create<AuthState>()(
         geminiApiKey: state.geminiApiKey,
         deepLKey: state.deepLKey,
         openaiApiKey: state.openaiApiKey,
+        claudeApiKey: state.claudeApiKey,
+        deepseekApiKey: state.deepseekApiKey,
+        customOpenaiApiKey: state.customOpenaiApiKey,
+        customOpenaiBaseUrl: state.customOpenaiBaseUrl,
+        customOpenaiModel: state.customOpenaiModel,
       }),
     },
   ),

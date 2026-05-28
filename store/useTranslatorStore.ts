@@ -38,6 +38,15 @@ export interface TranslatorState {
   useToriiForCleaning: boolean;
 
   /**
+   * When enabled, the pipeline uses Lama Cleaner to remove text from
+   * the image via inpainting based on OCR bounding boxes.
+   */
+  inpaintEnabled: boolean;
+
+  /** URL of the Lama Cleaner service endpoint. */
+  lamaCleanerUrl: string;
+
+  /**
    * When true (default), uploaded images are immediately sent through
    * the translation pipeline. When false, they are queued with status
    * 'idle' so the user can trigger translation manually.
@@ -66,6 +75,8 @@ export interface TranslatorState {
   setToriiStrokeDisabled: (v: boolean) => void;
   setToriiInpaintOnly: (v: boolean) => void;
   setUseToriiForCleaning: (v: boolean) => void;
+  setInpaintEnabled: (v: boolean) => void;
+  setLamaCleanerUrl: (v: string) => void;
   setAutoTranslate: (v: boolean) => void;
   setSidebarCollapsed: (v: boolean) => void;
 }
@@ -97,6 +108,8 @@ export const useTranslatorStore = create<TranslatorState>()(
       toriiStrokeDisabled: false,
       toriiInpaintOnly: false,
       useToriiForCleaning: false,
+      inpaintEnabled: false,
+      lamaCleanerUrl: 'http://localhost:8080',
       autoTranslate: true,
       sidebarCollapsed: false,
 
@@ -118,6 +131,8 @@ export const useTranslatorStore = create<TranslatorState>()(
       setToriiStrokeDisabled: v => set({ toriiStrokeDisabled: v }),
       setToriiInpaintOnly: v => set({ toriiInpaintOnly: v }),
       setUseToriiForCleaning: v => set({ useToriiForCleaning: v }),
+      setInpaintEnabled: v => set({ inpaintEnabled: v }),
+      setLamaCleanerUrl: v => set({ lamaCleanerUrl: v }),
       setAutoTranslate: v => set({ autoTranslate: v }),
       setSidebarCollapsed: v => set({ sidebarCollapsed: v }),
     }),

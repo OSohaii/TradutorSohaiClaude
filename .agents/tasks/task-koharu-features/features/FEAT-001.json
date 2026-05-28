@@ -1,0 +1,41 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add Claude (Anthropic) and DeepSeek as translation engines - full stack implementation following the existing openai.py provider pattern. Both use chat completions API style.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Backend: Add 'anthropic' package to backend/requirements.txt (anthropic SDK or use httpx directly like openai.py does). Create backend/app/providers/claude.py following the pattern of openai.py: implement process_manga_page() for OCR+translate (using Claude's vision capability) and translate_bubbles() for text-only translation. Use the Anthropic Messages API (https://api.anthropic.com/v1/messages) with model 'claude-sonnet-4-20250514' for CLAUDE and 'claude-haiku-4-20250414' for CLAUDE_HAIKU. Include the same _retry_with_backoff, _classify_error, _system_instruction, _ocr_prompt, and _bubble_from_raw helpers adapted for Anthropic's response format.",
+    "Step 2 - Backend: Create backend/app/providers/deepseek.py following openai.py pattern but with base URL 'https://api.deepseek.com' and model 'deepseek-chat' for the DEEPSEEK engine. Since DeepSeek uses OpenAI-compatible API, this can be nearly identical to openai.py but with different _API_URL, model name, and error classification referencing 'deepseek' as the engine name. Note: DeepSeek does NOT support vision/image input, so only implement translate_bubbles() (no process_manga_page). The OCR step cannot use DeepSeek.",
+    "Step 3 - Backend schemas: Add CLAUDE, CLAUDE_HAIKU, and DEEPSEEK to the EngineId enum in backend/app/schemas/common.py.",
+    "Step 4 - Backend config: Add claude_api_key and deepseek_api_key fields to the Settings class in backend/app/config.py (same pattern as openai_api_key).",
+    "Step 5 - Backend deps: Update backend/app/deps.py: (a) Add claude and deepseek fields to the Byok dataclass, (b) Add x_byok_claude and x_byok_deepseek header params to get_byok(), (c) Add for_claude() and for_deepseek() methods to KeyResolver, (d) Update ENGINE_TO_BYOK dict with the new engine entries.",
+    "Step 6 - Backend pipeline service: Update backend/app/services/pipeline.py: (a) Add _CLAUDE_MODELS dict mapping CLAUDE -> 'claude-sonnet-4-20250514', CLAUDE_HAIKU -> 'claude-haiku-4-20250414'. (b) Add _is_claude() helper. (c) Add _DEEPSEEK_MODELS dict mapping DEEPSEEK -> 'deepseek-chat'. (d) Add _is_deepseek() helper. (e) Update plan_pipeline() to handle Claude as OCR engine (like OpenAI - vision capable) and DeepSeek as translation-only engine. (f) Add _run_claude_ocr() function. (g) Update _run_translation_step() to handle Claude and DeepSeek engines. (h) Update _run_main_ocr() to handle Claude. (i) Update _FULL_PIPELINE_ENGINES if needed.",
+    "Step 7 - Backend translate router: Update backend/app/routers/translate.py to handle Claude and DeepSeek engines in the translate endpoint, importing from the new providers.",
+    "Step 8 - Frontend types: Add 'CLAUDE', 'CLAUDE_HAIKU', and 'DEEPSEEK' to the EngineId union type in types.ts.",
+    "Step 9 - Frontend auth store: Add claudeApiKey and deepseekApiKey fields with setters to store/useAuthStore.ts. Add them to the partialize function for persistence.",
+    "Step 10 - Frontend API client: Add claude and deepseek fields to the ByokKeys interface in services/api/client.ts. Add X-Byok-Claude and X-Byok-Deepseek to the byokHeaders() function.",
+    "Step 11 - Frontend settings modals: Create features/settings/ClaudeSettingsModal.tsx following OpenAISettingsModal.tsx pattern (purple/violet theme, link to https://console.anthropic.com/). Create features/settings/DeepSeekSettingsModal.tsx (cyan theme, link to https://platform.deepseek.com/).",
+    "Step 12 - Frontend pipeline integration: Update features/translator/useTranslatePipeline.ts: (a) Read claudeApiKey and deepseekApiKey from useAuthStore. (b) Add them to buildByok(). (c) Add credential checks for CLAUDE/CLAUDE_HAIKU/DEEPSEEK engines. (d) Add 'claude' and 'deepseek' cases to handlePipelineError switch.",
+    "Step 13 - Frontend cost estimation: Add CLAUDE, CLAUDE_HAIKU, and DEEPSEEK entries to ENGINE_PRICING in features/translator/costEstimation.ts (Claude Sonnet: input 3.0, output 15.0; Claude Haiku: input 0.80, output 4.0; DeepSeek: input 0.14, output 0.28).",
+    "Step 14 - Frontend planPipeline: Update features/translator/planPipeline.ts to recognize Claude engines (they support vision like OpenAI).",
+    "Step 15 - Frontend App.tsx wiring: (a) Import ClaudeSettingsModal and DeepSeekSettingsModal. (b) Add state for showClaudeSettings and showDeepSeekSettings. (c) Add 'claude' and 'deepseek' cases to onAuthError callback. (d) Add CLAUDE, CLAUDE_HAIKU options to OCR and translator <select> dropdowns. (e) Add DEEPSEEK to the translator-only <select>. (f) Add settings buttons to the sidebar footer grid. (g) Render the modals.",
+    "Step 16 - Update tests: Add CLAUDE, CLAUDE_HAIKU, DEEPSEEK to any test that validates EngineId completeness (like planPipeline.test.ts). Add a test case for Claude as OCR+translate in planPipeline."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes without errors",
+    "npx vitest run passes (all existing + new tests)",
+    "npx vite build succeeds",
+    "backend/app/providers/claude.py exists with process_manga_page() and translate_bubbles()",
+    "backend/app/providers/deepseek.py exists with translate_bubbles()",
+    "CLAUDE, CLAUDE_HAIKU, DEEPSEEK appear in the EngineId enum (both frontend types.ts and backend schemas/common.py)",
+    "ClaudeSettingsModal.tsx and DeepSeekSettingsModal.tsx exist and are rendered in App.tsx",
+    "X-Byok-Claude and X-Byok-Deepseek headers are sent by the API client when keys are present"
+  ],
+  "verification": [
+    "npx vitest run",
+    "npx tsc --noEmit",
+    "npx vite build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

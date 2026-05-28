@@ -38,4 +38,24 @@ describe('planPipeline', () => {
     expect(steps).toHaveLength(1);
     expect(steps[0]).toEqual({ kind: 'image-engine', engine: 'TORII' });
   });
+
+  it('produces a single ocr-only step when Claude is used as both OCR and translator (unified)', () => {
+    const steps = planPipeline('CLAUDE', 'CLAUDE', { useToriiForCleaning: false });
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toEqual({ kind: 'ocr-only', engine: 'CLAUDE' });
+  });
+
+  it('produces separate steps when Claude is OCR and DeepSeek is translator', () => {
+    const steps = planPipeline('CLAUDE', 'DEEPSEEK', { useToriiForCleaning: false });
+    expect(steps).toHaveLength(2);
+    expect(steps[0]).toEqual({ kind: 'ocr-only', engine: 'CLAUDE' });
+    expect(steps[1]).toEqual({ kind: 'translate-only', engine: 'DEEPSEEK' });
+  });
+
+  it('produces separate steps when Claude Haiku is OCR and Claude is translator', () => {
+    const steps = planPipeline('CLAUDE_HAIKU', 'CLAUDE', { useToriiForCleaning: false });
+    expect(steps).toHaveLength(2);
+    expect(steps[0]).toEqual({ kind: 'ocr-only', engine: 'CLAUDE_HAIKU' });
+    expect(steps[1]).toEqual({ kind: 'translate-only', engine: 'CLAUDE' });
+  });
 });

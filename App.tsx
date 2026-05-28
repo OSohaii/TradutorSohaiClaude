@@ -13,6 +13,9 @@ import ToriiSettingsModal from './features/settings/ToriiSettingsModal';
 import DeepLSettingsModal from './features/settings/DeepLSettingsModal';
 import GeminiSettingsModal from './features/settings/GeminiSettingsModal';
 import OpenAISettingsModal from './features/settings/OpenAISettingsModal';
+import ClaudeSettingsModal from './features/settings/ClaudeSettingsModal';
+import DeepSeekSettingsModal from './features/settings/DeepSeekSettingsModal';
+import CustomOpenAISettingsModal from './features/settings/CustomOpenAISettingsModal';
 import FontManagerModal from './features/settings/FontManagerModal';
 import SettingsPanel from './features/settings/SettingsPanel';
 import OnboardingModal from './components/OnboardingModal';
@@ -57,6 +60,7 @@ import {
   Cog6ToothIcon,
   ArrowUpTrayIcon,
   QuestionMarkCircleIcon,
+  PaintBrushIcon,
 } from '@heroicons/react/24/outline';
 
 const App: React.FC = () => {
@@ -104,6 +108,10 @@ const App: React.FC = () => {
   const useToriiForCleaning = useTranslatorStore(s => s.useToriiForCleaning);
   const setUseToriiForCleaning = useTranslatorStore(s => s.setUseToriiForCleaning);
 
+  const inpaintEnabled = useTranslatorStore(s => s.inpaintEnabled);
+  const setInpaintEnabled = useTranslatorStore(s => s.setInpaintEnabled);
+  const lamaCleanerUrl = useTranslatorStore(s => s.lamaCleanerUrl);
+
   const autoTranslate = useTranslatorStore(s => s.autoTranslate);
   const setAutoTranslate = useTranslatorStore(s => s.setAutoTranslate);
 
@@ -121,6 +129,9 @@ const App: React.FC = () => {
   const geminiApiKey = useAuthStore(s => s.geminiApiKey);
   const deepLKey = useAuthStore(s => s.deepLKey);
   const openaiApiKey = useAuthStore(s => s.openaiApiKey);
+  const claudeApiKey = useAuthStore(s => s.claudeApiKey);
+  const deepseekApiKey = useAuthStore(s => s.deepseekApiKey);
+  const customOpenaiBaseUrl = useAuthStore(s => s.customOpenaiBaseUrl);
 
   // --- Custom fonts (for selector in sidebar) ---
   const customFonts = useFontsStore(s => s.customFonts);
@@ -142,6 +153,9 @@ const App: React.FC = () => {
   const [showDeepLSettings, setShowDeepLSettings] = useState(false);
   const [showGeminiSettings, setShowGeminiSettings] = useState(false);
   const [showOpenAISettings, setShowOpenAISettings] = useState(false);
+  const [showClaudeSettings, setShowClaudeSettings] = useState(false);
+  const [showDeepSeekSettings, setShowDeepSeekSettings] = useState(false);
+  const [showCustomOpenAISettings, setShowCustomOpenAISettings] = useState(false);
   const [showFontSettings, setShowFontSettings] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
@@ -175,13 +189,16 @@ const App: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // --- Translation pipeline hook ---
-  const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai') => {
+  const onAuthError = useCallback((modal: 'ichigo' | 'torii' | 'deepl' | 'gemini' | 'openai' | 'claude' | 'deepseek' | 'custom_openai') => {
     switch (modal) {
       case 'ichigo': setShowIchigoSettings(true); break;
       case 'torii': setShowToriiSettings(true); break;
       case 'deepl': setShowDeepLSettings(true); break;
       case 'gemini': setShowGeminiSettings(true); break;
       case 'openai': setShowOpenAISettings(true); break;
+      case 'claude': setShowClaudeSettings(true); break;
+      case 'deepseek': setShowDeepSeekSettings(true); break;
+      case 'custom_openai': setShowCustomOpenAISettings(true); break;
     }
   }, []);
 
@@ -533,6 +550,8 @@ const App: React.FC = () => {
                    <option value="GEMINI_PRO_FULL">Gemini 3.1 Pro (Full)</option>
                    <option value="GPT4O">GPT-4o</option>
                    <option value="GPT4O_MINI">GPT-4o Mini</option>
+                   <option value="CLAUDE">Claude Sonnet</option>
+                   <option value="CLAUDE_HAIKU">Claude Haiku</option>
                    <option value="ICHIGO">Ichigo</option>
                    <option value="TORII">Torii (Full)</option>
                 </select>
@@ -554,6 +573,10 @@ const App: React.FC = () => {
                            <option value="GEMINI_FLASH">Gemini 2.5 Flash</option>
                            <option value="GPT4O">GPT-4o</option>
                            <option value="GPT4O_MINI">GPT-4o Mini</option>
+                           <option value="CLAUDE">Claude Sonnet</option>
+                           <option value="CLAUDE_HAIKU">Claude Haiku</option>
+                           <option value="DEEPSEEK">DeepSeek</option>
+                           <option value="CUSTOM_OPENAI">Custom OpenAI</option>
                            <option value="DEEPL">DeepL</option>
                            <option value="GOOGLE">Google</option>
                            <option value="TORII">Torii</option>
@@ -673,9 +696,38 @@ const App: React.FC = () => {
                      onChange={() => {
                         setUseToriiForCleaning(!useToriiForCleaning);
                         if (!useToriiForCleaning && !toriiApiKey) setShowToriiSettings(true);
+                        // Mutual exclusion: disable inpaint when enabling Torii
+                        if (!useToriiForCleaning) setInpaintEnabled(false);
                      }} 
                      colorClass="bg-pink-600"
                    />
+                 </div>
+              )}
+
+              {/* Lama Cleaner Inpainting Toggle */}
+              {ocrEngine !== 'TORII' && transEngine !== 'TORII' && (
+                 <div className="pt-2 border-t border-slate-800 space-y-1">
+                   <Toggle 
+                     label={
+                        <span className="flex items-center gap-1.5" title="Inpaint via Lama Cleaner (remove texto usando IA)">
+                           <PaintBrushIcon className={`w-3.5 h-3.5 ${inpaintEnabled ? 'text-amber-400' : 'text-slate-500'}`} />
+                           Inpaint (Lama)
+                        </span>
+                     } 
+                     checked={inpaintEnabled} 
+                     onChange={() => {
+                        const newVal = !inpaintEnabled;
+                        setInpaintEnabled(newVal);
+                        // Mutual exclusion: disable Torii cleaner when enabling inpaint
+                        if (newVal) setUseToriiForCleaning(false);
+                     }} 
+                     colorClass="bg-amber-600"
+                   />
+                   {inpaintEnabled && (
+                     <p className="text-[9px] text-slate-500 pl-5 truncate" title={lamaCleanerUrl}>
+                       {lamaCleanerUrl}
+                     </p>
+                   )}
                  </div>
               )}
 
@@ -712,6 +764,9 @@ const App: React.FC = () => {
               <button onClick={() => setShowDeepLSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${deepLKey ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="DeepL"><LanguageIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowGeminiSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${geminiApiKey ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Google Gemini Key (BYOK)"><CommandLineIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowOpenAISettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${openaiApiKey ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="OpenAI Key (BYOK)"><SparklesIcon className="w-5 h-5"/></button>
+              <button onClick={() => setShowClaudeSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${claudeApiKey ? 'bg-violet-500/10 border-violet-500/30 text-violet-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Claude Key (BYOK)"><SparklesIcon className="w-5 h-5"/></button>
+              <button onClick={() => setShowDeepSeekSettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${deepseekApiKey ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="DeepSeek Key (BYOK)"><SparklesIcon className="w-5 h-5"/></button>
+              <button onClick={() => setShowCustomOpenAISettings(true)} className={`p-2 rounded-xl flex items-center justify-center border ${customOpenaiBaseUrl ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`} title="Custom OpenAI Endpoint"><CommandLineIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowFontSettings(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700" title="Gerenciar Fontes"><DocumentPlusIcon className="w-5 h-5"/></button>
               <button onClick={() => setShowSettingsPanel(true)} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-indigo-400" title="Configuracoes"><Cog6ToothIcon className="w-5 h-5"/></button>
               <button onClick={() => { localStorage.removeItem('mangalens-onboarding-done'); setShowOnboarding(true); }} className="p-2 rounded-xl flex items-center justify-center border bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-amber-400" title="Tutorial"><QuestionMarkCircleIcon className="w-5 h-5"/></button>
@@ -855,6 +910,9 @@ const App: React.FC = () => {
       <DeepLSettingsModal isOpen={showDeepLSettings} onClose={() => setShowDeepLSettings(false)} />
       <GeminiSettingsModal isOpen={showGeminiSettings} onClose={() => setShowGeminiSettings(false)} />
       <OpenAISettingsModal isOpen={showOpenAISettings} onClose={() => setShowOpenAISettings(false)} />
+      <ClaudeSettingsModal isOpen={showClaudeSettings} onClose={() => setShowClaudeSettings(false)} />
+      <DeepSeekSettingsModal isOpen={showDeepSeekSettings} onClose={() => setShowDeepSeekSettings(false)} />
+      <CustomOpenAISettingsModal isOpen={showCustomOpenAISettings} onClose={() => setShowCustomOpenAISettings(false)} />
       <SettingsPanel isOpen={showSettingsPanel} onClose={() => setShowSettingsPanel(false)} onOpenIchigoLogin={() => setShowIchigoSettings(true)} />
 
       {/* Library Manager */}

@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add PSD Export with editable layers - a frontend-only feature using the ag-psd npm package. Generates a Photoshop PSD file with the original image as background layer, inpainted/cleaned image as a middle layer (if available), and individual text layers for each translated bubble (editable in Photoshop).",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Install ag-psd: Add 'ag-psd' to package.json dependencies. Run npm install.",
+    "Step 2 - Create PSD export utility: Create features/export/psdExport.ts that exports a function exportToPsd(image: ProcessedImage): Promise<Blob>. This function: (a) Loads the original image from imageUrl as pixel data (using canvas). (b) If translatedImageUrl exists, loads it as a second layer. (c) For each bubble in image.bubbles, creates a text layer at the bubble's bounding box position with the translatedText content. (d) Uses ag-psd's writePsd() to generate the PSD buffer. (e) Returns a Blob for download.",
+    "Step 3 - PSD layer structure: Layer 0 (bottom): 'Original' - the full source image as a pixel layer. Layer 1 (optional): 'Cleaned' - the inpainted/cleaned image if available. Layer 2+: One text layer per bubble named 'Bubble N - [first 20 chars of text]' positioned at the bubble's box coordinates (converted from 0-1000 scale to actual pixel coordinates based on image dimensions).",
+    "Step 4 - Add export button to ViewerToolbar: In components/ViewerToolbar.tsx or components/MangaViewer.tsx, add a 'Export PSD' button (using DocumentArrowDownIcon or similar) that calls the psdExport function and triggers a browser download. Only show when the image has status 'done'.",
+    "Step 5 - Alternatively, add the PSD export to the existing toolbar area in MangaViewer.tsx. Look for existing download/export buttons and add alongside them. If there is no export section yet, add one to the viewer's top toolbar area.",
+    "Step 6 - Handle download: Create a helper that converts the Blob to a downloadable file using URL.createObjectURL + a temporary <a> element with download attribute. Filename: '{originalFileName}.psd'."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes",
+    "npx vitest run passes",
+    "npx vite build succeeds",
+    "ag-psd is listed in package.json dependencies",
+    "features/export/psdExport.ts exists with exportToPsd() function",
+    "PSD export button is visible in the viewer toolbar when an image has status 'done'",
+    "PSD contains at minimum the original image layer and text layers for each bubble"
+  ],
+  "verification": [
+    "npx vitest run",
+    "npx tsc --noEmit",
+    "npx vite build"
+  ],
+  "blocked_reason": null,
+  "findings": "ag-psd installed successfully. Used writePsd from ag-psd which returns ArrayBuffer. Text layers use the text property with text.text for content and top/left/right/bottom for positioning. DocumentArrowDownIcon from heroicons used for the PSD export button. Build bundle is 649KB (above 500KB warning) but this is pre-existing. All 28 tests pass."
+}

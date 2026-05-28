@@ -26,6 +26,11 @@ export interface CleanerConfig {
   engine?: EngineId;
 }
 
+export interface InpaintConfig {
+  enabled: boolean;
+  lamaUrl?: string;
+}
+
 export interface PipelineOptions {
   targetLanguage?: string;
   targetLangCode?: string;
@@ -38,6 +43,7 @@ export interface PipelineRequest {
   ocr: OcrConfig;
   translation: TranslationConfig;
   cleaner?: CleanerConfig;
+  inpaint?: InpaintConfig;
   options?: PipelineOptions;
   phase?: 'full' | 'ocr-only' | 'translate-only';
   bubbles?: TextBubble[];
